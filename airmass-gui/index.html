@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airmass chart &mdash; LBT (Large Binocular Telescope)</title>
+<style>
+:root {
+  --bg: #1e1e2e;
+  --bg-alt: #313244;
+  --fg: #cdd6f4;
+  --fg-dim: #9aa5c4;
+  --accent: #89b4fa;
+  --border: #45475a;
+  --error: #f38ba8;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.45;
+}
+.wrap { max-width: 1400px; margin: 0 auto; padding: 1.5rem 1.25rem 2rem; }
+header h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
+header p { margin: 0; color: var(--fg-dim); }
+.layout { display: grid; grid-template-columns: 340px 1fr; gap: 1rem; margin-top: 1rem; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+.panel { background: var(--bg-alt); border: 1px solid var(--border);
+         border-radius: 10px; padding: 0.75rem 0.9rem; margin-bottom: 0.9rem; }
+.panel h2 { font-size: 0.75rem; color: var(--accent); margin: 0 0 0.4rem;
+            text-transform: uppercase; letter-spacing: 0.05em; }
+.panel h2:first-child { margin-top: 0; }
+label.field { display: flex; align-items: center; gap: 0.5rem; margin: 0.22rem 0;
+              font-size: 0.83rem; color: var(--fg-dim); }
+label.field span { flex: 0 0 96px; }
+input, select {
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 0.24rem 0.4rem; font: inherit; font-size: 0.83rem;
+  flex: 1; min-width: 0;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+input[type="color"] { padding: 0; width: 30px; height: 26px; flex: none; }
+button {
+  background: #45475a; color: var(--fg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 0.28rem 0.7rem; font: inherit; font-size: 0.83rem;
+  cursor: pointer;
+}
+button:hover { background: #585b70; }
+.target-row { display: grid; grid-template-columns: 30px 1fr 1fr 1fr 22px;
+              gap: 0.3rem; margin: 0.25rem 0; align-items: center; }
+.target-row .rm { border: none; background: transparent; color: var(--fg-dim);
+                  font-size: 1.05rem; padding: 0; }
+.target-row .rm:hover { color: var(--error); }
+.add-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto auto;
+           gap: 0.3rem; margin-top: 0.35rem; }
+.actions { display: flex; gap: 0.5rem; }
+.chart-box { background: var(--bg); border: 1px solid var(--border);
+             border-radius: 10px; padding: 0.5rem; min-width: 0; align-self: start; }
+canvas { display: block; width: 100%; }
+.status { min-height: 1.15em; font-size: 0.8rem; color: var(--error);
+          margin-top: 0.4rem; word-break: break-word; }
+footer { margin-top: 1.25rem; color: var(--fg-dim); font-size: 0.8rem; }
+footer li { margin-bottom: 0.2rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>Airmass chart &mdash; <span id="obs-title">LBT (Large Binocular Telescope)</span></h1>
+<p>Airmass (X) for the targets below, as seen from this observatory.
+   Every control is live; your edits are saved in this browser.</p>
+</header>
+<div class="layout">
+<aside>
+  <div class="panel">
+    <h2>Observatory</h2>
+    <label class="field"><span>Preset</span><select id="preset"></select></label>
+    <label class="field"><span>Latitude (&deg;)</span><input id="lat" type="number" step="0.00001"></label>
+    <label class="field"><span>Longitude (&deg;)</span><input id="lon" type="number" step="0.00001"></label>
+    <label class="field"><span>Elevation (m)</span><input id="elev" type="number" step="1"></label>
+    <label class="field"><span>Time zone</span><input id="tz" type="text" placeholder="IANA, e.g. America/Phoenix"></label>
+  </div>
+  <div class="panel">
+    <h2>Time range (local)</h2>
+    <label class="field"><span>Start</span><input id="start" type="datetime-local"></label>
+    <label class="field"><span>Duration (days)</span><input id="days" type="number" step="0.1" min="0.25" max="30"></label>
+  </div>
+  <div class="panel">
+    <h2>Targets</h2>
+    <div id="targets"></div>
+    <div class="add-row">
+      <input id="new-name" placeholder="Name">
+      <input id="new-ra" placeholder="RA  h:m:s / deg">
+      <input id="new-dec" placeholder="Dec d:m:s / deg">
+      <button id="simbad-btn" title="Look up this name in CDS Simbad">Simbad</button>
+      <button id="add-btn">Add</button>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Workspace</h2>
+    <div class="actions">
+      <button id="export-btn">Export JSON</button>
+      <button id="reset-btn">Reset</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+</aside>
+<main class="chart-box">
+  <canvas id="chart"></canvas>
+</main>
+</div>
+<footer>
+<ul>
+<li>Airmass: Kasten &amp; Young (1989), normalized so X(90&deg;) = 1; curves are hidden below the horizon and the dotted line marks X = 2.</li>
+<li>Twilight shading marks day / civil / nautical / astro / night.</li>
+<li>Entered ICRS coordinates are precessed to the mean equator/equinox of date (IAU 2006; nutation omitted), so altitudes agree with the desktop app to ~0.01&deg;. The Simbad button looks a name up in CDS Simbad (needs internet; mirrors tried in order).</li>
+<li>Initial workspace generated by airmass-gui on 2026-11-21T13:10:48; edits stay in this browser (localStorage) until you export or reset.</li>
+</ul>
+</footer>
+</div>
+<script>
+"use strict";
+
+/*JS-CORE-BEGIN*/
+// Pure astronomy / parsing helpers (no DOM, no Intl).
+// Cross-checked against astropy in tests/test_site.py.
+
+function wrap360(x) { return ((x % 360) + 360) % 360; }
+function d2r(x) { return x * Math.PI / 180; }
+function r2d(x) { return x * 180 / Math.PI; }
+
+// Unix epoch milliseconds -> Julian Date.
+function jdFromUtcMs(ms) { return ms / 86400000 + 2440587.5; }
+
+// Meeus GMST (degrees); agrees with IAU-2006 GMST to < 0.0011 deg.
+function gmstMeeus(jd) {
+  var d = jd - 2451545.0;
+  var t = d / 36525.0;
+  return wrap360(280.46061837 + 360.98564736629 * d + 0.000387933 * t + (t * t) / 38710000);
+}
+
+function lstDeg(jd, lonDeg) { return wrap360(gmstMeeus(jd) + lonDeg); }
+
+// Geometric altitude (deg) of an equatorial source (RA in hours, Dec in deg).
+function altitude(raH, decDeg, jd, latDeg, lonDeg) {
+  var ha = d2r(wrap360(lstDeg(jd, lonDeg) - raH * 15));
+  var s = Math.sin(d2r(latDeg)) * Math.sin(d2r(decDeg)) +
+          Math.cos(d2r(latDeg)) * Math.cos(d2r(decDeg)) * Math.cos(ha);
+  return r2d(Math.asin(Math.max(-1, Math.min(1, s))));
+}
+
+// IAU 2006 precession, J2000 mean equator/equinox -> mean equator/equinox of
+// date (nutation omitted).  PREC[i][j] holds the (a0,a1,a2,a3) cubic
+// coefficients of element (i,j) of the precession matrix, fitted to the
+// ERFA pn06 matrix over T in [-1, 2] (residual < 1e-8 rad); applying
+// w = PREC(T) * v to a J2000 unit vector precesses it to the mean
+// equator/equinox of date, i.e. precesses ICRS coordinates.
+var PREC = [
+  [[0.9999999996062562, -2.1969297619512713e-08, -0.00029719232752057473, -1.0114765190709189e-07],
+   [-6.441078856070561e-11, -0.02236038696016588, -6.7450623683643375e-06, 2.2182280752204036e-06],
+   [-1.8423325298910764e-11, -0.00971659701165348, 2.0810738950801485e-06, 9.63543008198074e-07]],
+  [[6.934748246821439e-11, 0.022360387230982312, 6.746186239891443e-06, -2.2185904659856523e-06],
+   [0.9999999996697424, -1.848286552434681e-08, -0.0002499873528838399, -1.2605619559802516e-07],
+   [-1.444713293875262e-10, 1.1680395998077555e-07, -0.0001086306631635869, -1.7402145308112042e-08]],
+  [[7.123689993411714e-12, 0.009716596387706123, -2.0836605130397537e-06, -9.627094011907582e-07],
+   [-1.4592286977355824e-10, -1.3290190160297146e-07, -0.000108630885301105, 2.0003846174793192e-08],
+   [0.9999999999365136, -3.486436381556712e-09, -4.7204974649895375e-05, 2.4908549929831116e-08]]
+];
+
+// ICRS (raDeg, decDeg in degrees) -> mean equator/equinox of date, nutation omitted (degrees).
+function precessIcrsToTete(raDeg, decDeg, jd) {
+  var T = (jd - 2451545.0) / 36525.0;
+  var T2 = T * T, T3 = T2 * T;
+  var x = Math.cos(d2r(decDeg)) * Math.cos(d2r(raDeg));
+  var y = Math.cos(d2r(decDeg)) * Math.sin(d2r(raDeg));
+  var z = Math.sin(d2r(decDeg));
+  var M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  var i, j, c;
+  for (i = 0; i < 3; i++) {
+    for (j = 0; j < 3; j++) {
+      c = PREC[i][j];
+      M[i][j] = c[0] + c[1] * T + c[2] * T2 + c[3] * T3;
+    }
+  }
+  var wx = M[0][0] * x + M[0][1] * y + M[0][2] * z;
+  var wy = M[1][0] * x + M[1][1] * y + M[1][2] * z;
+  var wz = M[2][0] * x + M[2][1] * y + M[2][2] * z;
+  var decT = r2d(Math.asin(Math.max(-1, Math.min(1, wz))));
+  var raT = wrap360(r2d(Math.atan2(wy, wx)));
+  return { raDeg: raT, dec: decT };
+}
+// Parse a SIMBAD ASCII object record (output.format=ASCII): name from the
+// first non-C.D.S line of the header, RA/Dec from the ICRS coordinate line.
+// Returns { name, raDeg, dec } (J2000) or null when no coordinates are present.
+function simbadParseRecord(text) {
+  var lines = String(text).split("\n");
+  var i, s, m;
+  var name = null;
+  for (i = 0; i < lines.length && i < 4; i++) {
+    s = lines[i].replace(/^\s+|\s+$/g, "");
+    if (s !== "" && s.indexOf("C.D.S") !== 0) { name = s; break; }
+  }
+  var re = /Coordinates\(ICRS,ep=J2000,eq=2000\):\s+(\d+)\s+(\d+)\s+([\d.]+)\s+([+-]?\d+)\s+(\d+)\s+([\d.]+)/;
+  for (i = 0; i < lines.length; i++) {
+    m = re.exec(lines[i]);
+    if (m) {
+      var raDeg = (parseFloat(m[1]) + parseFloat(m[2]) / 60 + parseFloat(m[3]) / 3600) * 15;
+      var dec = Math.abs(parseFloat(m[4])) + parseFloat(m[5]) / 60 + parseFloat(m[6]) / 3600;
+      if (m[4].charAt(0) === "-") dec = -dec;
+      return { name: name || "Unknown", raDeg: raDeg, dec: dec };
+    }
+  }
+  return null;
+}
+
+
+// Kasten & Young (1989) airmass, normalized so X(90 deg) = 1.
+var ZENITH_X = 1 / (1 + 0.50572 * Math.pow(96.07995, -1.6364));
+
+function kastyAir(altDeg) {
+  return (1 / (Math.sin(d2r(altDeg)) + 0.50572 * Math.pow(altDeg + 6.07995, -1.6364))) / ZENITH_X;
+}
+
+function airmass(altDeg) { return altDeg > 0 ? kastyAir(altDeg) : Infinity; }
+
+function horizonX() { return kastyAir(0); }
+
+// Airmass X -> altitude (deg) by bisection on [0, 90]; X is clipped to range.
+function altFromAirmass(x) {
+  var target = Math.min(Math.max(x, 1), horizonX());
+  if (target <= 1) return 90;
+  var lo = 0, hi = 90;
+  for (var i = 0; i < 100; i++) {
+    var mid = 0.5 * (lo + hi);
+    if (hi - lo <= 1e-9) break;
+    if (kastyAir(mid) > target) lo = mid; else hi = mid;
+  }
+  return 0.5 * (lo + hi);
+}
+
+// Low-precision geocentric Sun (Meeus) as {raH, dec} (hours / degrees).
+function sunRaDec(jd) {
+  var n = jd - 2451545.0;
+  var L = 280.460 + 0.9856474 * n;
+  var g = d2r(357.529 + 0.9856003 * n);
+  var lam = d2r(L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g));
+  var eps = d2r(23.439 - 0.0000004 * n);
+  var dec = r2d(Math.asin(Math.sin(eps) * Math.sin(lam)));
+  var raH = wrap360(r2d(Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)))) / 15;
+  return { raH: raH, dec: dec };
+}
+
+function sunAltitude(jd, latDeg, lonDeg) {
+  var sun = sunRaDec(jd);
+  return altitude(sun.raH, sun.dec, jd, latDeg, lonDeg);
+}
+
+function classifySunAlt(altDeg) {
+  if (altDeg > 0) return "day";
+  if (altDeg > -6) return "civil";
+  if (altDeg > -12) return "nautical";
+  if (altDeg > -18) return "astro";
+  return "night";
+}
+
+// Twilight shading intervals [[startMs, endMs, kind], ...] on a 10-min grid.
+function sunShading(startMs, endMs, latDeg, lonDeg) {
+  var step = 10 * 60 * 1000;
+  var n = Math.ceil((endMs - startMs) / step) + 1;
+  var t = new Array(n), alt = new Array(n);
+  var i;
+  for (i = 0; i < n; i++) {
+    t[i] = startMs + i * step;
+    alt[i] = sunAltitude(jdFromUtcMs(t[i]), latDeg, lonDeg);
+  }
+  var events = [];
+  var thresholds = [0, -6, -12, -18];
+  for (var thI = 0; thI < thresholds.length; thI++) {
+    var th = thresholds[thI];
+    for (i = 0; i < n - 1; i++) {
+      var a0 = alt[i] - th, a1 = alt[i + 1] - th;
+      if (a0 === 0) continue;
+      if (Math.sign(a0) !== Math.sign(a1)) {
+        events.push(t[i] + (a0 / (a0 - a1)) * (t[i + 1] - t[i]));
+      }
+    }
+  }
+  events.sort(function (a, b) { return a - b; });
+  var bounds = [startMs].concat(events, [endMs]);
+  var out = [];
+  for (i = 0; i < bounds.length - 1; i++) {
+    var a = bounds[i], b = bounds[i + 1];
+    if (b - a < 86.4) continue; // 1e-6 day, in ms
+    out.push([a, b, classifySunAlt(sunAltitude(jdFromUtcMs(0.5 * (a + b)), latDeg, lonDeg))]);
+  }
+  return out;
+}
+
+function _parts(text) {
+  var s = String(text).trim().toLowerCase();
+  var tokens = ["h", "m", "s", "deg", "d", "\u00b0", "\u2032", "\u2033"];
+  var i;
+  for (i = 0; i < tokens.length; i++) s = s.split(tokens[i]).join(" ");
+  return s.replace(/:/g, " ").split(/\s+/).filter(function (p) { return p !== ""; }).map(Number);
+}
+
+// RA as h:m:s, h m s, decimal hours, or decimal degrees (> 24). Returns hours.
+function parseRa(text) {
+  var s = String(text).trim();
+  if (!s) throw new Error("RA is empty");
+  if (s.indexOf(":") >= 0 || /[hms]/.test(s.toLowerCase())) {
+    var vals = _parts(s);
+    if (vals.length < 1 || vals.length > 3 || vals.some(function (v) { return !isFinite(v); })) {
+      throw new Error("unparseable RA: " + text);
+    }
+    while (vals.length < 3) vals.push(0);
+    if (Math.abs(vals[1]) >= 60 || Math.abs(vals[2]) >= 60) {
+      throw new Error("unparseable RA: " + text);
+    }
+    return (vals[0] + vals[1] / 60 + vals[2] / 3600) % 24;
+  }
+  var value = Number(s);
+  if (!isFinite(value)) throw new Error("unparseable RA: " + text);
+  return (value > 24 ? value / 15 : value) % 24;
+}
+
+// Dec as d:m:s, d m s, or decimal degrees. Returns degrees.
+function parseDec(text) {
+  var s = String(text).trim();
+  if (!s) throw new Error("Dec is empty");
+  if (s.indexOf(":") >= 0 || /[\u00b0\u2032\u2033]/.test(s) || /[dms]/.test(s.toLowerCase())) {
+    var vals = _parts(s);
+    if (vals.length < 1 || vals.length > 3 || vals.some(function (v) { return !isFinite(v); })) {
+      throw new Error("unparseable Dec: " + text);
+    }
+    while (vals.length < 3) vals.push(0);
+    if (Math.abs(vals[1]) >= 60 || Math.abs(vals[2]) >= 60) {
+      throw new Error("unparseable Dec: " + text);
+    }
+    var sign = vals[0] < 0 ? -1 : 1;
+    return sign * (Math.abs(vals[0]) + vals[1] / 60 + vals[2] / 3600);
+  }
+  var value = Number(s);
+  if (!isFinite(value)) throw new Error("unparseable Dec: " + text);
+  if (Math.abs(value) > 90) throw new Error("Dec out of range: " + text);
+  return value;
+}
+/*JS-CORE-END*/
+
+// --------------------------------------------------------------- embedded data
+var INITIAL =
+{"version": 1, "created": "2026-11-20T23:47:57", "modified": "2026-11-21T00:40:17", "observatory": {"name": "LBT (Large Binocular Telescope)", "lat": 32.44278, "lon": -111.155, "elevation_m": 2400.0, "timezone": "America/Phoenix", "preset": "LBT (Large Binocular Telescope)"}, "objects": [{"name": "Vega", "ra": "18:36:56.30142", "dec": "+38:47:01.4506", "color": "#1f77b4"}, {"name": "Procyon", "ra": "07:39:18.12", "dec": "+05:13:29.96", "color": "#ff7f0e"}, {"name": "HD 984", "ra": "00:14:10.25", "dec": "-07:11:56.81", "color": "#2ca02c"}], "time_range": {"start": "2026-11-20T12:00", "days": 2.0}};
+var OBSERVATORIES =
+[{"name": "LBT (Large Binocular Telescope)", "lat": 32.44278, "lon": -111.155, "elevation_m": 2400.0, "timezone": "America/Phoenix"}, {"name": "Keck I/II (Mauna Kea)", "lat": 19.8263, "lon": -155.4744, "elevation_m": 4145.0, "timezone": "Pacific/Honolulu"}, {"name": "Subaru (Mauna Kea)", "lat": 19.8257, "lon": -155.4746, "elevation_m": 4146.0, "timezone": "Pacific/Honolulu"}, {"name": "Gemini North (Mauna Kea)", "lat": 19.8227, "lon": -155.4737, "elevation_m": 2731.0, "timezone": "Pacific/Honolulu"}, {"name": "VLT (Paranal)", "lat": -24.6275, "lon": -70.4044, "elevation_m": 2635.0, "timezone": "America/Santiago"}, {"name": "Gemini South (Cerro Pachon)", "lat": -30.244, "lon": -70.7379, "elevation_m": 2722.0, "timezone": "America/Santiago"}, {"name": "CTIO (Cerro Tololo)", "lat": -30.1691, "lon": -70.8067, "elevation_m": 2200.0, "timezone": "America/Santiago"}, {"name": "McDonald (MPE)", "lat": 30.6709, "lon": -104.5612, "elevation_m": 1710.0, "timezone": "America/Chicago"}];
+var PALETTE =
+["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"];
+var SHADE =
+{"day": "#605f69", "civil": "#635846", "nautical": "#3c455c", "astro": "#303850", "night": "#171a2b"};
+var THEME = {
+  bg: "#1e1e2e",
+  axes_bg: "#26263a",
+  fg: "#cdd6f4",
+  fg_dim: "#9aa5c4",
+  border: "#45475a",
+  error: "#f38ba8",
+};
+var STATE_KEY = "airmass-gui-site-state";
+var FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+
+function $(id) { return document.getElementById(id); }
+function setStatus(msg) { $("status").textContent = msg || ""; }
+
+// ------------------------------------------------------------------- state
+function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
+
+function loadState() {
+  try {
+    var raw = localStorage.getItem(STATE_KEY);
+    if (raw) {
+      var s = JSON.parse(raw);
+      if (s && s.observatory && Array.isArray(s.objects) && s.time_range) return s;
+    }
+  } catch (e) { /* fall through to INITIAL */ }
+  return deepCopy(INITIAL);
+}
+
+var state = loadState();
+
+function saveState() {
+  try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch (e) { /* private mode */ }
+}
+
+// ---------------------------------------------------------- time / timezone
+var _fmtCache = {};
+function tzFormatter(tz) {
+  if (!_fmtCache[tz]) {
+    _fmtCache[tz] = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz, hourCycle: "h23",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    });
+  }
+  return _fmtCache[tz];
+}
+function fmtLabel(tz) {
+  if (!_fmtCache["label:" + tz]) {
+    _fmtCache["label:" + tz] = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz, hourCycle: "h23",
+      month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    });
+  }
+  return _fmtCache["label:" + tz];
+}
+function tzParts(tz, ms) {
+  var out = {};
+  var parts = tzFormatter(tz).formatToParts(new Date(ms));
+  for (var i = 0; i < parts.length; i++) out[parts[i].type] = Number(parts[i].value);
+  return out;
+}
+function resolveTz(tz) {
+  if (!tz) return "UTC";
+  try { new Intl.DateTimeFormat("en-CA", { timeZone: tz }); return tz; }
+  catch (e) { return "UTC"; }
+}
+
+// Naive wall time (y, mo, d, h, mi, s) in tz -> UTC epoch ms (iterates to fix the offset).
+function wallToUtc(tz, y, mo, d, h, mi, s) {
+  var want = Date.UTC(y, mo - 1, d, h, mi, s);
+  var guess = want;
+  for (var i = 0; i < 4; i++) {
+    var p = tzParts(tz, guess);
+    var got = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+    if (got === want) return guess;
+    guess += want - got;
+  }
+  return guess;
+}
+
+function startUtcMs() {
+  var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(state.time_range.start || ""));
+  if (!m) return null;
+  return wallToUtc(resolveTz(state.observatory.timezone),
+                   +m[1], +m[2], +m[3], +m[4], +m[5], 0);
+}
+function endUtcMs() {
+  var s = startUtcMs();
+  return s == null ? null : s + state.time_range.days * 86400000;
+}
+function pad2(n) { return (n < 10 ? "0" : "") + n; }
+function localStamp(ms) {
+  var p = tzParts(resolveTz(state.observatory.timezone), ms);
+  return p.year + "-" + pad2(p.month) + "-" + pad2(p.day) +
+         " " + pad2(p.hour) + ":" + pad2(p.minute);
+}
+function nextLocalMidnight(tz, afterMs) {
+  var ms = afterMs;
+  for (var i = 0; i < 5; i++) {
+    var p = tzParts(tz, ms);
+    var mid = wallToUtc(tz, p.year, p.month, p.day, 0, 0, 0);
+    if (mid >= afterMs) return mid;
+    ms = mid + 86400000;
+  }
+  return afterMs;
+}
+function timeTicks(startMs, endMs, tz) {
+  var hours = (endMs - startMs) / 3600000;
+  var candidates = [0.25, 0.5, 1, 2, 3, 4, 6, 12, 24, 48, 72, 96];
+  var stepH = 96;
+  for (var i = 0; i < candidates.length; i++) {
+    if (hours / candidates[i] <= 12) { stepH = candidates[i]; break; }
+  }
+  var stepMs = Math.round(stepH * 3600000);
+  var base = nextLocalMidnight(tz, startMs - stepMs);
+  if (stepH < 24) base -= stepMs; // anchor the grid to local midnight
+  var first = base + Math.ceil((startMs - base) / stepMs) * stepMs;
+  var ticks = [];
+  for (var t = first; t <= endMs; t += stepMs) ticks.push(t);
+  return ticks;
+}
+
+// ------------------------------------------------------------------ controls
+function syncAllControls() {
+  var obs = state.observatory;
+  $("obs-title").textContent = obs.name || "Custom observatory";
+  var isPreset = false;
+  for (var i = 0; i < OBSERVATORIES.length; i++) {
+    if (OBSERVATORIES[i].name === obs.preset) isPreset = true;
+  }
+  $("preset").value = isPreset ? obs.preset : "Custom";
+  $("lat").value = obs.lat;
+  $("lon").value = obs.lon;
+  $("elev").value = obs.elevation_m;
+  $("tz").value = obs.timezone || "";
+  $("start").value = String(state.time_range.start || "").replace(" ", "T");
+  $("days").value = state.time_range.days;
+  renderTargets();
+}
+
+function buildPresetSelect() {
+  var sel = $("preset");
+  sel.innerHTML = "";
+  OBSERVATORIES.forEach(function (p) {
+    var opt = document.createElement("option");
+    opt.value = p.name;
+    opt.textContent = p.name;
+    sel.appendChild(opt);
+  });
+  var custom = document.createElement("option");
+  custom.value = "Custom";
+  custom.textContent = "Custom";
+  sel.appendChild(custom);
+}
+
+function commitObsFields() {
+  var obs = state.observatory;
+  var lat = parseFloat($("lat").value);
+  var lon = parseFloat($("lon").value);
+  var elev = parseFloat($("elev").value);
+  var tz = $("tz").value.trim();
+  if (isFinite(lat)) obs.lat = lat;
+  if (isFinite(lon)) obs.lon = lon;
+  if (isFinite(elev)) obs.elevation_m = elev;
+  if (tz) obs.timezone = tz;
+  if (obs.preset) {
+    var p = null;
+    for (var i = 0; i < OBSERVATORIES.length; i++) {
+      if (OBSERVATORIES[i].name === obs.preset) p = OBSERVATORIES[i];
+    }
+    var changed = p === null ||
+      Math.abs(obs.lat - p.lat) > 1e-4 ||
+      Math.abs(obs.lon - p.lon) > 1e-4 ||
+      Math.abs(obs.elevation_m - p.elevation_m) > 0.5 ||
+      obs.timezone !== p.timezone;
+    if (changed) {
+      obs.preset = null;
+      $("preset").value = "Custom";
+    }
+  }
+  obs.name = obs.preset || "Custom observatory";
+}
+
+function onObsField() {
+  commitObsFields();
+  saveState();
+  scheduleRedraw();
+}
+
+function nextColor() {
+  var used = state.objects.map(function (o) { return o.color; });
+  for (var i = 0; i < PALETTE.length; i++) {
+    if (used.indexOf(PALETTE[i]) < 0) return PALETTE[i];
+  }
+  return PALETTE[state.objects.length % PALETTE.length];
+}
+
+function renderTargets() {
+  var box = $("targets");
+  box.innerHTML = "";
+  state.objects.forEach(function (obj, i) {
+    var row = document.createElement("div");
+    row.className = "target-row";
+    row.innerHTML =
+      '<input type="color" title="Color">' +
+      '<input placeholder="Name" title="Name">' +
+      '<input placeholder="RA (h:m:s / deg)" title="RA">' +
+      '<input placeholder="Dec (d:m:s / deg)" title="Dec">' +
+      '<button class="rm" title="Remove" type="button">&#215;</button>';
+    var kids = row.children;
+    kids[0].value = /^#[0-9a-fA-F]{6}$/.test(obj.color || "") ? obj.color : PALETTE[i % PALETTE.length];
+    kids[1].value = obj.name || "";
+    kids[2].value = obj.ra || "";
+    kids[3].value = obj.dec || "";
+    kids[0].addEventListener("input", function () { obj.color = this.value; afterTargetChange(); });
+    kids[1].addEventListener("input", function () { obj.name = this.value; afterTargetChange(); });
+    kids[2].addEventListener("input", function () { obj.ra = this.value; afterTargetChange(); });
+    kids[3].addEventListener("input", function () { obj.dec = this.value; afterTargetChange(); });
+    kids[4].addEventListener("click", function () {
+      state.objects.splice(i, 1);
+      renderTargets();
+      afterTargetChange();
+    });
+    box.appendChild(row);
+  });
+}
+
+function afterTargetChange() {
+  saveState();
+  scheduleRedraw();
+}
+
+function exportWorkspace() {
+  var doc = {
+    version: 1,
+    created: INITIAL.created || "",
+    modified: new Date().toISOString().slice(0, 19).replace("T", " "),
+    observatory: state.observatory,
+    objects: state.objects,
+    time_range: state.time_range,
+  };
+  var blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "airmass-workspace.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
+// --------------------------------------------------------------------- chart
+var canvas = $("chart");
+var ctx = canvas.getContext("2d");
+
+function sizeCanvas() {
+  var dpr = window.devicePixelRatio || 1;
+  var w = Math.max(320, canvas.clientWidth);
+  var h = Math.round(Math.min(620, Math.max(340, w * 0.495)));
+  canvas.style.height = h + "px";
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w: w, h: h };
+}
+
+function draw() {
+  var size = sizeCanvas();
+  var w = size.w, h = size.h;
+  var obs = state.observatory;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = THEME.bg;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = THEME.fg;
+  ctx.font = "500 13px " + FONT;
+  ctx.fillText("Airmass chart \u2014 " + (obs.name || "Custom observatory"), w / 2, 20);
+
+  var tz = resolveTz(obs.timezone);
+  var badTz = tz !== (obs.timezone || "").trim();
+  var startMs = startUtcMs();
+  var endMs = endUtcMs();
+  var msg = null;
+  if (badTz) msg = "Time zone '" + obs.timezone + "' not recognized \u2014 using UTC.";
+  if (startMs == null) msg = "Start time is not parseable (expected YYYY-MM-DD HH:MM).";
+  else if (!isFinite(state.time_range.days) || state.time_range.days <= 0) {
+    msg = "Duration must be a positive number of days.";
+  }
+
+  ctx.font = "11px " + FONT;
+  ctx.fillStyle = THEME.fg_dim;
+  if (startMs != null && msg === null) {
+    ctx.fillText(localStamp(startMs) + " \u2192 " + localStamp(endMs) + " local", w / 2, 36);
+  } else {
+    ctx.fillText("Fix the time range to draw the chart", w / 2, 36);
+  }
+  setStatus(msg);
+  if (msg !== null) {
+    ctx.fillStyle = THEME.error;
+    ctx.font = "13px " + FONT;
+    ctx.fillText(msg, w / 2, h / 2);
+    return;
+  }
+
+  var M = { l: 56, r: 52, t: 52, b: 44 };
+  var plot = { x: M.l, y: M.t, w: w - M.l - M.r, h: h - M.t - M.b };
+  function X(ms) { return plot.x + ((ms - startMs) / (endMs - startMs)) * plot.w; }
+  function Y(alt) { return plot.y + (1 - alt / 90) * plot.h; }
+
+  // axis background + twilight shading
+  ctx.fillStyle = THEME.axes_bg;
+  ctx.fillRect(plot.x, plot.y, plot.w, plot.h);
+  var shading = sunShading(startMs, endMs, obs.lat, obs.lon);
+  for (var si = 0; si < shading.length; si++) {
+    var iv = shading[si];
+    ctx.fillStyle = SHADE[iv[2]];
+    ctx.fillRect(X(iv[0]), plot.y, X(iv[1]) - X(iv[0]), plot.h);
+  }
+
+  var ticks = timeTicks(startMs, endMs, tz);
+
+  // grid
+  ctx.strokeStyle = "rgba(69, 71, 90, 0.6)";
+  ctx.lineWidth = 1;
+  var airTicks = [1, 1.5, 2, 4, 8, 20];
+  for (var gi = 0; gi < airTicks.length; gi++) {
+    var gy = Y(altFromAirmass(airTicks[gi]));
+    ctx.beginPath(); ctx.moveTo(plot.x, gy); ctx.lineTo(plot.x + plot.w, gy); ctx.stroke();
+  }
+  for (var gi2 = 0; gi2 < ticks.length; gi2++) {
+    var gx = X(ticks[gi2]);
+    ctx.beginPath(); ctx.moveTo(gx, plot.y); ctx.lineTo(gx, plot.y + plot.h); ctx.stroke();
+  }
+
+  // X = 2 reference line
+  var y2 = Y(altFromAirmass(2));
+  ctx.save();
+  ctx.setLineDash([3, 3]);
+  ctx.strokeStyle = THEME.fg_dim;
+  ctx.beginPath(); ctx.moveTo(plot.x, y2); ctx.lineTo(plot.x + plot.w, y2); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = THEME.fg_dim;
+  ctx.font = "11px " + FONT;
+  ctx.textAlign = "right";
+  ctx.fillText("X = 2", plot.x + plot.w - 4, y2 + 13);
+
+  // target curves
+  var errors = [], below = [], legend = [];
+  var step = 5 * 60 * 1000;
+  var n = Math.ceil((endMs - startMs) / step) + 1;
+  state.objects.forEach(function (obj, oi) {
+    var name = obj.name || "Target " + (oi + 1);
+    var color = obj.color || PALETTE[0];
+    var raH, dec;
+    try {
+      raH = parseRa(obj.ra);
+      dec = parseDec(obj.dec);
+    } catch (e) {
+      errors.push(name + ": " + e.message);
+      return;
+    }
+    var pts = [];
+    for (var k = 0; k < n; k++) {
+      var ms = startMs + k * step;
+      var jd = jdFromUtcMs(ms);
+      var tt = precessIcrsToTete(raH * 15, dec, jd);
+      pts.push([ms, airmass(altitude(tt.raDeg / 15, tt.dec, jd, obs.lat, obs.lon))]);
+    }
+    var finite = pts.filter(function (p) { return isFinite(p[1]); });
+    if (finite.length === 0) { below.push(name); return; }
+    var minP = finite[0];
+    for (var fi = 1; fi < finite.length; fi++) {
+      if (finite[fi][1] < minP[1]) minP = finite[fi];
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    var open = false;
+    for (var pi = 0; pi < pts.length; pi++) {
+      if (!isFinite(pts[pi][1])) { open = false; continue; }
+      var px = X(pts[pi][0]), py = Y(altFromAirmass(pts[pi][1]));
+      if (!open) { ctx.moveTo(px, py); open = true; } else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = "11px " + FONT;
+    ctx.textAlign = "left";
+    ctx.fillText("min " + minP[1].toFixed(2), X(minP[0]) + 5, Y(altFromAirmass(minP[1])) + 14);
+    legend.push({ name: name, color: color });
+  });
+
+  // plot border
+  ctx.strokeStyle = THEME.border;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(plot.x, plot.y, plot.w, plot.h);
+
+  // tick marks + labels
+  ctx.font = "11px " + FONT;
+  ctx.strokeStyle = THEME.fg;
+  ctx.fillStyle = THEME.fg;
+  ctx.textAlign = "right";
+  for (var li = 0; li < airTicks.length; li++) {
+    var ly = Y(altFromAirmass(airTicks[li]));
+    ctx.fillText(String(airTicks[li]), plot.x - 6, ly + 3.5);
+    ctx.beginPath(); ctx.moveTo(plot.x - 4, ly); ctx.lineTo(plot.x, ly); ctx.stroke();
+  }
+  ctx.textAlign = "left";
+  var altTicks = [0, 15, 30, 45, 60, 75, 90];
+  for (var ai = 0; ai < altTicks.length; ai++) {
+    var ay = Y(altTicks[ai]);
+    ctx.fillText(altTicks[ai] + "\u00b0", plot.x + plot.w + 6, ay + 3.5);
+    ctx.beginPath(); ctx.moveTo(plot.x + plot.w, ay); ctx.lineTo(plot.x + plot.w + 4, ay); ctx.stroke();
+  }
+  var fmt = fmtLabel(tz);
+  var lastRight = -Infinity;
+  ctx.textAlign = "center";
+  for (var ti = 0; ti < ticks.length; ti++) {
+    var tx = X(ticks[ti]);
+    ctx.beginPath(); ctx.moveTo(tx, plot.y + plot.h); ctx.lineTo(tx, plot.y + plot.h + 4); ctx.stroke();
+    var label = fmt.format(new Date(ticks[ti]));
+    var tw = ctx.measureText(label).width;
+    if (tx - tw / 2 >= lastRight + 4) {
+      ctx.fillText(label, tx, plot.y + plot.h + 17);
+      lastRight = tx + tw / 2;
+    }
+  }
+
+  // axis labels
+  ctx.textAlign = "center";
+  ctx.fillText("Local time (" + (obs.timezone || "UTC") + ")", plot.x + plot.w / 2, h - 8);
+  ctx.save();
+  ctx.translate(12, plot.y + plot.h / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText("Airmass X", 0, 0);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(w - 8, plot.y + plot.h / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.fillText("Altitude", 0, 0);
+  ctx.restore();
+
+  // legend (upper left)
+  if (legend.length > 0) {
+    var pad = 6, rowH = 15, sw = 10;
+    var maxW = 0;
+    for (var le = 0; le < legend.length; le++) {
+      maxW = Math.max(maxW, ctx.measureText(legend[le].name).width);
+    }
+    var lw = maxW + sw + 2 * pad + 6, lh = legend.length * rowH + 2 * pad;
+    var lx = plot.x + 8, ly2 = plot.y + 8;
+    ctx.fillStyle = THEME.axes_bg;
+    ctx.fillRect(lx, ly2, lw, lh);
+    ctx.strokeStyle = THEME.border;
+    ctx.strokeRect(lx, ly2, lw, lh);
+    ctx.textAlign = "left";
+    for (var le2 = 0; le2 < legend.length; le2++) {
+      var yy = ly2 + pad + 10 + le2 * rowH;
+      ctx.fillStyle = legend[le2].color;
+      ctx.fillRect(lx + pad, yy - 8, sw, sw);
+      ctx.fillStyle = THEME.fg;
+      ctx.fillText(legend[le2].name, lx + pad + sw + 6, yy);
+    }
+  }
+
+  // parse errors (lower left)
+  ctx.textAlign = "left";
+  ctx.fillStyle = THEME.error;
+  for (var ei = 0; ei < errors.length; ei++) {
+    ctx.fillText(errors[ei], plot.x + 8,
+                 plot.y + plot.h - 10 - (errors.length - 1 - ei) * 14);
+  }
+
+  // below horizon for whole range (upper right)
+  ctx.textAlign = "right";
+  ctx.fillStyle = THEME.fg_dim;
+  for (var bi = 0; bi < below.length; bi++) {
+    ctx.fillText(below[bi] + ": below horizon for whole range",
+                 plot.x + plot.w - 8, plot.y + 16 + bi * 14);
+  }
+}
+
+// ------------------------------------------------------------------ wiring
+var redrawTimer = null;
+function scheduleRedraw() {
+  if (redrawTimer) clearTimeout(redrawTimer);
+  redrawTimer = setTimeout(function () { redrawTimer = null; draw(); }, 150);
+}
+
+buildPresetSelect();
+$("preset").addEventListener("change", function () {
+  var name = this.value;
+  if (name !== "Custom") {
+    for (var i = 0; i < OBSERVATORIES.length; i++) {
+      if (OBSERVATORIES[i].name === name) {
+        state.observatory = {
+          name: name,
+          lat: OBSERVATORIES[i].lat,
+          lon: OBSERVATORIES[i].lon,
+          elevation_m: OBSERVATORIES[i].elevation_m,
+          timezone: OBSERVATORIES[i].timezone,
+          preset: name,
+        };
+        break;
+      }
+    }
+    syncAllControls();
+  } else {
+    state.observatory.preset = null;
+  }
+  commitObsFields();
+  saveState();
+  scheduleRedraw();
+});
+["lat", "lon", "elev", "tz"].forEach(function (id) {
+  $(id).addEventListener("input", onObsField);
+});
+$("start").addEventListener("input", function () {
+  if (this.value) state.time_range.start = this.value.replace("T", " ");
+  saveState();
+  scheduleRedraw();
+});
+$("days").addEventListener("input", function () {
+  var v = parseFloat(this.value);
+  if (isFinite(v) && v > 0) state.time_range.days = v;
+  saveState();
+  scheduleRedraw();
+});
+$("add-btn").addEventListener("click", function () {
+  var name = $("new-name").value.trim();
+  var ra = $("new-ra").value.trim();
+  var dec = $("new-dec").value.trim();
+  try {
+    parseRa(ra);
+    parseDec(dec);
+  } catch (e) {
+    setStatus(e.message);
+    return;
+  }
+  state.objects.push({
+    name: name || "Target " + (state.objects.length + 1),
+    ra: ra,
+    dec: dec,
+    color: nextColor(),
+  });
+  $("new-name").value = "";
+  $("new-ra").value = "";
+  $("new-dec").value = "";
+  renderTargets();
+  setStatus("");
+  afterTargetChange();
+});
+
+// Simbad lookup (browser only: needs fetch; the record parser lives in the
+// engine-tested core). Mirrors are tried in order, as in the desktop app.
+var SIMBAD_ENDPOINTS = [
+  "https://simbad.cfa.harvard.edu/simbad/sim-id",
+  "https://simbad.idia.ac.za/simbad/sim-id",
+  "https://simbad.u-strasbg.fr/simbad/sim-id",
+];
+
+function simbadFetchText(url) {
+  var controller = new AbortController();
+  var timer = setTimeout(function () { controller.abort(); }, 30000);
+  return fetch(url, { signal: controller.signal })
+    .catch(function (error) {
+      throw new Error(error && error.name === "AbortError" ? "timed out" : error.message);
+    })
+    .then(function (response) {
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      return response.text();
+    })
+    .finally(function () { clearTimeout(timer); });
+}
+
+async function simbadLookup(name) {
+  var errors = [];
+  for (var i = 0; i < SIMBAD_ENDPOINTS.length; i++) {
+    var endpoint = SIMBAD_ENDPOINTS[i];
+    try {
+      var text = await simbadFetchText(
+        endpoint + "?Ident=" + encodeURIComponent(name) +
+        "&output.service=bibformat&output.format=ASCII"
+      );
+      var record = simbadParseRecord(text);
+      if (record) return record;
+      errors.push("no coordinates in response");
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+  throw new Error("Simbad lookup failed for \u201c" + name + "\u201d: " + errors.join("; "));
+}
+
+// Non-negative hours or degrees -> "H:MM:SS.ss" / "D:MM:SS.ss" (2 fractional seconds).
+function sexagesimalString(value, fracDigits) {
+  var top = Math.floor(value);
+  var mid = Math.floor((value - top) * 60);
+  var secText = ((value - top) * 3600 - mid * 60).toFixed(fracDigits);
+  if (parseFloat(secText) >= 60) { secText = (0).toFixed(fracDigits); mid += 1; }
+  if (mid === 60) { mid = 0; top += 1; }
+  return top + ":" + String(mid).padStart(2, "0") + ":" + secText.padStart(5, "0");
+}
+
+$("simbad-btn").addEventListener("click", function () {
+  var name = $("new-name").value.trim();
+  if (!name) {
+    setStatus("Enter a name to look up in Simbad");
+    return;
+  }
+  setStatus("Looking up \u201c" + name + "\u201d in Simbad\u2026");
+  simbadLookup(name)
+    .then(function (record) {
+      $("new-name").value = record.name;
+      $("new-ra").value = sexagesimalString(wrap360(record.raDeg) / 15, 2);
+      $("new-dec").value = (record.dec < 0 ? "-" : "+") + sexagesimalString(Math.abs(record.dec), 2);
+      $("add-btn").click();
+      setStatus("Added \u201c" + record.name + "\u201d from Simbad");
+    })
+    .catch(function (error) {
+      setStatus(error.message);
+    });
+});
+$("export-btn").addEventListener("click", exportWorkspace);
+$("reset-btn").addEventListener("click", function () {
+  try { localStorage.removeItem(STATE_KEY); } catch (e) { /* ignore */ }
+  state = deepCopy(INITIAL);
+  syncAllControls();
+  setStatus("");
+  draw();
+});
+window.addEventListener("resize", scheduleRedraw);
+
+syncAllControls();
+draw();
+</script>
+</body>
+</html>
