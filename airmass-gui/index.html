@@ -48,8 +48,11 @@ button {
   cursor: pointer;
 }
 button:hover { background: #585b70; }
-.target-row { display: grid; grid-template-columns: 30px 1fr 1fr 1fr 22px;
+.target-row { display: grid; grid-template-columns: 30px 1fr 1fr 1fr 44px 1fr auto 22px;
               gap: 0.3rem; margin: 0.25rem 0; align-items: center; }
+.target-row .info { font-size: 0.75rem; color: var(--fg-dim); cursor: pointer;
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.target-row .info:hover { color: var(--fg); }
 .target-row .rm { border: none; background: transparent; color: var(--fg-dim);
                   font-size: 1.05rem; padding: 0; }
 .target-row .rm:hover { color: var(--error); }
@@ -63,11 +66,20 @@ input[type="checkbox"] { flex: none; }
 .chart-box { background: var(--bg); border: 1px solid var(--border);
              border-radius: 10px; padding: 0.5rem; min-width: 0;
              position: relative; }
+#summary-panel .sum-total { margin-bottom: 0.5rem; font-size: 0.82rem; color: var(--fg-dim); }
+#summary-panel .sum-total b { color: var(--fg); }
 #summary-panel .sum-target { margin: 0.35rem 0; font-size: 0.82rem; }
 #summary-panel .sum-target b { color: var(--fg); }
 #summary-panel .sum-day { display: block; margin-left: 1rem; color: var(--fg-dim);
                           font: 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 #summary-panel .sum-empty { color: var(--fg-dim); font-size: 0.8rem; }
+#calendar-panel .cal-target { margin: 0.35rem 0; font-size: 0.82rem; }
+#calendar-panel .cal-target b { color: var(--fg); }
+#calendar .cal-table { border-collapse: collapse; margin-left: 0.5rem; font-size: 0.78rem; }
+#calendar .cal-table th, #calendar .cal-table td { padding: 0.08rem 0.6rem 0.08rem 0;
+                                                   text-align: right; }
+#calendar .cal-table th { color: var(--fg-dim); font-weight: normal; }
+#calendar .cal-empty { color: var(--fg-dim); font-size: 0.8rem; }
 canvas { display: block; width: 100%; }
 #tooltip { position: absolute; display: none; pointer-events: none; z-index: 10;
            background: var(--bg-alt); border: 1px solid var(--border);
@@ -109,9 +121,17 @@ footer li { margin-bottom: 0.2rem; }
     <h2>Display</h2>
     <label class="field"><span>Windows</span><input id="windows-chk" type="checkbox" checked></label>
     <label class="field"><span>Max airmass</span><input id="threshold" type="number" step="0.1" min="1.05"></label>
+    <label class="field"><span>Curve</span><select id="curve-sel">
+      <option value="airmass">Airmass</option>
+      <option value="altitude">Altitude</option>
+      <option value="azimuth">Azimuth</option>
+    </select></label>
     <label class="field"><span>Moon</span><input id="moon-chk" type="checkbox"></label>
     <label class="field"><span>Civil twilight</span><input id="civil-chk" type="checkbox"></label>
     <label class="field"><span>Nautical twilight</span><input id="nautical-chk" type="checkbox"></label>
+    <label class="field"><span>Dawn/dusk ticks</span><input id="dusk-chk" type="checkbox" checked></label>
+    <label class="field"><span>Weather</span><input id="weather-chk" type="checkbox"></label>
+    <label class="field"><span>Annual calendar</span><input id="calendar-chk" type="checkbox" checked></label>
   </div>
   <div class="panel">
     <h2>Targets</h2>
@@ -123,6 +143,18 @@ footer li { margin-bottom: 0.2rem; }
       <button id="simbad-btn" title="Look up this name in CDS Simbad">Simbad</button>
       <button id="add-btn">Add</button>
     </div>
+  </div>
+  <div class="panel">
+    <h2>S/N estimate</h2>
+    <label class="field"><span>Aperture (m)</span><input id="snr-ap" type="number" step="0.01" min="0.01"></label>
+    <label class="field"><span>FWHM (arcsec)</span><input id="snr-fwhm" type="number" step="0.1" min="0.01"></label>
+    <label class="field"><span>Pix scale (arcsec/pix)</span><input id="snr-pix" type="number" step="0.01" min="0.01"></label>
+    <label class="field"><span>Read noise (e-)</span><input id="snr-rn" type="number" step="0.1" min="0"></label>
+    <label class="field"><span>Dark (e-/pix/s)</span><input id="snr-dark" type="number" step="0.001" min="0"></label>
+    <label class="field"><span>Efficiency (%)</span><input id="snr-eff" type="number" step="1" min="0" max="100"></label>
+    <label class="field"><span>Extinction (mag/X)</span><input id="snr-k" type="number" step="0.01" min="0"></label>
+    <label class="field"><span>Target S/N</span><input id="snr-target" type="number" step="1" min="1"></label>
+    <label class="field"><span>Fixed exposure (s)</span><input id="snr-fixed" type="number" step="1" min="0" title="0 = solve for the exposure time; otherwise report the S/N reached by this exposure"></label>
   </div>
   <div class="panel">
     <h2>Workspace</h2>
@@ -152,6 +184,13 @@ footer li { margin-bottom: 0.2rem; }
   <div class="panel" id="summary-panel">
     <h2>Observing windows</h2>
     <div id="summary"></div>
+    <div class="actions">
+      <button id="csv-btn" title="Download the observing windows as CSV">Windows CSV</button>
+    </div>
+  </div>
+  <div class="panel" id="calendar-panel">
+    <h2>Annual calendar</h2>
+    <div id="calendar"></div>
   </div>
 </main>
 </div>
@@ -161,10 +200,11 @@ footer li { margin-bottom: 0.2rem; }
 <li>Twilight shading marks day / civil / nautical / astro / night.</li>
 <li>Entered ICRS coordinates are precessed to the mean equator/equinox of date (IAU 2006; nutation omitted), so altitudes agree with the desktop app to ~0.01&deg;. The Simbad button looks a name up in CDS Simbad (needs internet; mirrors tried in order).</li>
 <li>Chart navigation: the wheel pans the time window, Ctrl/&#8984;+wheel zooms around the cursor, dragging the left or right plot edge resizes the window, dragging inside pans, and double-clicking resets to the full range. Hovering the plot shows each target&rsquo;s altitude, azimuth, airmass and parallactic angle at that instant.</li>
-<li>Initial workspace generated by airmass-gui on 2026-11-21T15:30:18; edits stay in this browser (localStorage) until you export or reset.</li>
+<li>Initial workspace generated by airmass-gui on 2026-11-21T16:29:24; edits stay in this browser (localStorage) until you export or reset.</li>
 <li>Sharing: the URL encodes the full workspace (&#35;w= fragment) — Copy link in the Workspace panel copies it, and opening it loads that exact setup.</li>
 <li>Workspaces: save named copies in this browser, import an exported JSON file, or download the chart as a PNG image (Export JSON keeps the desktop-app file shape).</li>
 <li>Windows: the dashed line marks your airmass threshold; shaded bands show when each target is usable, colored ticks on the time axis mark transits, and the panel below the chart lists per-night windows, transit times and airmass.</li>
+<li>S/N: each per-night window also lists, at the window midpoint, the single exposure that reaches the target S/N (or the S/N of the fixed exposure), from a V-band model: an 8.75&#215;10&#179; e&#8315;&sup1; cm&#8315;&sup2; s&#8315;&sup1; zero point, 21.9 mag arcsec&#8315;&sup2; of dark sky, a Moon term scaled by phase and altitude (Houdashelt et al. 2005), and 0.10 mag per airmass of extinction. The V magnitude is the target&rsquo;s (Simbad lookup or the V mag column); the defaults are editable in the S/N panel.</li>
 <li>Moon: with Moon checked, a dashed curve shows the Moon&rsquo;s airmass and the tooltip adds its altitude, illumination fraction, and angular separation from each target.</li>
 <li>Touch and keys: a single finger pans, two fingers pinch to zoom, and a tap shows the tooltip; the arrow keys pan, + / - zoom around the center, and 0 or r resets the window. With Civil / Nautical twilight checked, thin vertical lines mark the sun&rsquo;s -6&deg; and -12&deg; crossings.</li>
 </ul>
@@ -177,23 +217,69 @@ footer li { margin-bottom: 0.2rem; }
 // Pure astronomy / parsing helpers (no DOM, no Intl).
 // Cross-checked against astropy in tests/test_site.py.
 
+/**
+ * Wrap an angle into [0, 360) degrees.
+ *
+ * @param {number} x - Angle in degrees, any sign.
+ * @returns {number} Equivalent angle in [0, 360).
+ */
 function wrap360(x) { return ((x % 360) + 360) % 360; }
+/**
+ * Convert degrees to radians.
+ *
+ * @param {number} x - Angle in degrees.
+ * @returns {number} Angle in radians.
+ */
 function d2r(x) { return x * Math.PI / 180; }
+/**
+ * Convert radians to degrees.
+ *
+ * @param {number} x - Angle in radians.
+ * @returns {number} Angle in degrees.
+ */
 function r2d(x) { return x * 180 / Math.PI; }
 
-// Unix epoch milliseconds -> Julian Date.
+/**
+ * Convert Unix epoch milliseconds to Julian Date.
+ *
+ * @param {number} ms - UTC epoch milliseconds.
+ * @returns {number} Julian Date.
+ */
 function jdFromUtcMs(ms) { return ms / 86400000 + 2440587.5; }
 
-// Meeus GMST (degrees); agrees with IAU-2006 GMST to < 0.0011 deg.
+/**
+ * Greenwich mean sidereal time from Meeus (1998).
+ *
+ * Agrees with the IAU-2006 definition to < 0.0011 deg.
+ *
+ * @param {number} jd - Julian Date.
+ * @returns {number} GMST in degrees, [0, 360).
+ */
 function gmstMeeus(jd) {
   var d = jd - 2451545.0;
   var t = d / 36525.0;
   return wrap360(280.46061837 + 360.98564736629 * d + 0.000387933 * t + (t * t) / 38710000);
 }
 
+/**
+ * Local sidereal time for a geodetic longitude.
+ *
+ * @param {number} jd - Julian Date.
+ * @param {number} lonDeg - Geodetic longitude in degrees, positive east.
+ * @returns {number} LST in degrees, [0, 360).
+ */
 function lstDeg(jd, lonDeg) { return wrap360(gmstMeeus(jd) + lonDeg); }
 
-// Geometric altitude (deg) of an equatorial source (RA in hours, Dec in deg).
+/**
+ * Geometric altitude of an equatorial source.
+ *
+ * @param {number} raH - Right ascension in hours.
+ * @param {number} decDeg - Declination in degrees.
+ * @param {number} jd - Julian Date.
+ * @param {number} latDeg - Observer latitude in degrees.
+ * @param {number} lonDeg - Observer longitude in degrees, positive east.
+ * @returns {number} Altitude in degrees; negative below the horizon.
+ */
 function altitude(raH, decDeg, jd, latDeg, lonDeg) {
   var ha = d2r(wrap360(lstDeg(jd, lonDeg) - raH * 15));
   var s = Math.sin(d2r(latDeg)) * Math.sin(d2r(decDeg)) +
@@ -201,8 +287,17 @@ function altitude(raH, decDeg, jd, latDeg, lonDeg) {
   return r2d(Math.asin(Math.max(-1, Math.min(1, s))));
 }
 
-// Horizon coordinates of an equatorial source: altitude (deg) and
-// azimuth (deg, clockwise from north through east), geometric.
+/**
+ * Horizon coordinates of an equatorial source.
+ *
+ * @param {number} raH - Right ascension in hours.
+ * @param {number} decDeg - Declination in degrees.
+ * @param {number} jd - Julian Date.
+ * @param {number} latDeg - Observer latitude in degrees.
+ * @param {number} lonDeg - Observer longitude in degrees, positive east.
+ * @returns {{alt: number, az: number}} Altitude in degrees and azimuth in
+ *     degrees, clockwise from north through east.
+ */
 function horizonCoords(raH, decDeg, jd, latDeg, lonDeg) {
   var ha = d2r(wrap360(lstDeg(jd, lonDeg) - raH * 15));
   var phi = d2r(latDeg), dec = d2r(decDeg);
@@ -215,12 +310,19 @@ function horizonCoords(raH, decDeg, jd, latDeg, lonDeg) {
   return { alt: alt, az: az };
 }
 
-// Parallactic angle q (deg): angle at the object between the vertical
-// circle and the hour circle, i.e. the angle at the object from the
-// zenith direction to the pole direction. 0 on the meridian; positive
-// west of it. NaN where the hour circle is undefined (pole or zenith).
-// Derived from the ENU geometry: q = atan2(cos(lat) sin(H),
-// sin(lat) cos(dec) - cos(lat) sin(dec) cos(H)), H the hour angle.
+/**
+ * Parallactic angle q: angle at the object between the vertical circle and the hour circle.
+ *
+ * 0 on the meridian, positive west of it; NaN where the hour circle is
+ * undefined (object at the celestial pole or at the zenith).
+ *
+ * @param {number} raH - Right ascension in hours.
+ * @param {number} decDeg - Declination in degrees.
+ * @param {number} jd - Julian Date.
+ * @param {number} latDeg - Observer latitude in degrees.
+ * @param {number} lonDeg - Observer longitude in degrees, positive east.
+ * @returns {number} q in degrees, or NaN.
+ */
 function parallacticAngle(raH, decDeg, jd, latDeg, lonDeg) {
   var hor = horizonCoords(raH, decDeg, jd, latDeg, lonDeg);
   if (Math.abs(decDeg) >= 89.99 || hor.alt >= 89.99) return NaN;
@@ -232,12 +334,8 @@ function parallacticAngle(raH, decDeg, jd, latDeg, lonDeg) {
   ));
 }
 
-// IAU 2006 precession, J2000 mean equator/equinox -> mean equator/equinox of
-// date (nutation omitted).  PREC[i][j] holds the (a0,a1,a2,a3) cubic
-// coefficients of element (i,j) of the precession matrix, fitted to the
-// ERFA pn06 matrix over T in [-1, 2] (residual < 1e-8 rad); applying
-// w = PREC(T) * v to a J2000 unit vector precesses it to the mean
-// equator/equinox of date, i.e. precesses ICRS coordinates.
+// Cubic-in-T coefficients (a0..a3) of element (i,j) of the IAU 2006
+// precession matrix; see precessIcrsToTete.
 var PREC = [
   [[0.9999999996062562, -2.1969297619512713e-08, -0.00029719232752057473, -1.0114765190709189e-07],
    [-6.441078856070561e-11, -0.02236038696016588, -6.7450623683643375e-06, 2.2182280752204036e-06],
@@ -250,7 +348,18 @@ var PREC = [
    [0.9999999999365136, -3.486436381556712e-09, -4.7204974649895375e-05, 2.4908549929831116e-08]]
 ];
 
-// ICRS (raDeg, decDeg in degrees) -> mean equator/equinox of date, nutation omitted (degrees).
+/**
+ * Precess ICRS coordinates to the mean equator/equinox of date.
+ *
+ * IAU 2006 precession, nutation omitted. PREC is a cubic-in-T fit of the
+ * ERFA pn06 matrix over T in [-1, 2] (residual < 1e-8 rad).
+ *
+ * @param {number} raDeg - Right ascension in degrees, J2000.
+ * @param {number} decDeg - Declination in degrees, J2000.
+ * @param {number} jd - Julian Date of the target epoch.
+ * @returns {{raDeg: number, dec: number}} Coordinates in the mean
+ *     equator/equinox of date, degrees.
+ */
 function precessIcrsToTete(raDeg, decDeg, jd) {
   var T = (jd - 2451545.0) / 36525.0;
   var T2 = T * T, T3 = T2 * T;
@@ -272,9 +381,20 @@ function precessIcrsToTete(raDeg, decDeg, jd) {
   var raT = wrap360(r2d(Math.atan2(wy, wx)));
   return { raDeg: raT, dec: decT };
 }
-// Parse a SIMBAD ASCII object record (output.format=ASCII): name from the
-// first non-C.D.S line of the header, RA/Dec from the ICRS coordinate line.
-// Returns { name, raDeg, dec } (J2000) or null when no coordinates are present.
+/**
+ * Parse a SIMBAD ASCII object record.
+ *
+ * Name comes from the first non-C.D.S. line of the header; RA/Dec from
+ * the ICRS coordinate line; mag, spec and plx from the "Flux V",
+ * "Spectral type:" and "Parallax:" lines, null when a line is absent.
+ *
+ * @param {string} text - Response body for output.format=ASCII.
+ * @returns {?{name: string, raDeg: number, dec: number,
+ *     mag: ?number, spec: ?string, plx: ?number}} J2000 name, RA in
+ *     degrees and Dec in degrees, plus mag (V magnitude), spec
+ *     (spectral type) and plx (parallax in mas), or null when no
+ *     coordinates are present.
+ */
 function simbadParseRecord(text) {
   var lines = String(text).split("\n");
   var i, s, m;
@@ -284,31 +404,66 @@ function simbadParseRecord(text) {
     if (s !== "" && s.indexOf("C.D.S") !== 0) { name = s; break; }
   }
   var re = /Coordinates\(ICRS,ep=J2000,eq=2000\):\s+(\d+)\s+(\d+)\s+([\d.]+)\s+([+-]?\d+)\s+(\d+)\s+([\d.]+)/;
+  var reMag = /^Flux V\s*:\s*(-?[\d.]+)/;
+  var reSpec = /^Spectral type:\s*(\S+)/;
+  var rePlx = /^Parallax:\s*([\d.]+)/;
+  var mag = null, spec = null, plx = null;
+  for (i = 0; i < lines.length; i++) {
+    if (mag === null && (m = reMag.exec(lines[i]))) mag = parseFloat(m[1]);
+    if (spec === null && (m = reSpec.exec(lines[i]))) spec = m[1];
+    if (plx === null && (m = rePlx.exec(lines[i]))) plx = parseFloat(m[1]);
+  }
   for (i = 0; i < lines.length; i++) {
     m = re.exec(lines[i]);
     if (m) {
       var raDeg = (parseFloat(m[1]) + parseFloat(m[2]) / 60 + parseFloat(m[3]) / 3600) * 15;
       var dec = Math.abs(parseFloat(m[4])) + parseFloat(m[5]) / 60 + parseFloat(m[6]) / 3600;
       if (m[4].charAt(0) === "-") dec = -dec;
-      return { name: name || "Unknown", raDeg: raDeg, dec: dec };
+      return { name: name || "Unknown", raDeg: raDeg, dec: dec,
+               mag: mag, spec: spec, plx: plx };
     }
   }
   return null;
 }
 
 
-// Kasten & Young (1989) airmass, normalized so X(90 deg) = 1.
+// Kasten & Young (1989) airmass at 90 deg; normalizes the formula to 1 at the zenith.
 var ZENITH_X = 1 / (1 + 0.50572 * Math.pow(96.07995, -1.6364));
 
+/**
+ * Kasten & Young (1989) airmass, normalized so X(90 deg) = 1.
+ *
+ * @param {number} altDeg - Altitude in degrees; negative values
+ *     extrapolate below the horizon.
+ * @returns {number} Airmass X.
+ */
 function kastyAir(altDeg) {
   return (1 / (Math.sin(d2r(altDeg)) + 0.50572 * Math.pow(altDeg + 6.07995, -1.6364))) / ZENITH_X;
 }
 
+/**
+ * Airmass for altitude in degrees; Infinity below the horizon.
+ *
+ * @param {number} altDeg - Altitude in degrees.
+ * @returns {number} Airmass X, or Infinity at or below 0 deg.
+ */
 function airmass(altDeg) { return altDeg > 0 ? kastyAir(altDeg) : Infinity; }
 
+/**
+ * Airmass at the horizon (altitude 0 deg), ~= 37.93.
+ *
+ * @returns {number} Airmass X.
+ */
 function horizonX() { return kastyAir(0); }
 
-// Airmass X -> altitude (deg) by bisection on [0, 90]; X is clipped to range.
+/**
+ * Invert the airmass formula: X -> altitude in degrees.
+ *
+ * Bisection over [0, 90] deg; X is clipped to [1, horizonX()].
+ *
+ * @param {number} x - Airmass.
+ * @returns {number} Altitude in degrees.
+ */
 function altFromAirmass(x) {
   var target = Math.min(Math.max(x, 1), horizonX());
   if (target <= 1) return 90;
@@ -321,7 +476,169 @@ function altFromAirmass(x) {
   return 0.5 * (lo + hi);
 }
 
-// Low-precision geocentric Sun (Meeus) as {raH, dec} (hours / degrees).
+// ------------------------------------------------------------------ S/N model
+// Single-exposure S/N in the V band. The same equations are mirrored in
+// airmass_gui.sn (Python) and cross-tested against it in the test suite.
+var SNR_V_ZERP = 8.75e5;    // photons cm^-2 s^-1, V = 0, integrated over the V band
+var SNR_SKY_DARK = 21.9;    // mag arcsec^-2, dark sky (no Moon)
+var SNR_PSF_COEF = 1.1364;  // effective PSF pixel-count coefficient
+
+/**
+ * Compute the collecting area of a circular telescope.
+ *
+ * @param {number} apertureM - Primary diameter in metres.
+ * @returns {number} Collecting area in cm^2.
+ */
+function snrArea(apertureM) {
+  var radiusCm = 0.5 * apertureM * 100.0;
+  return Math.PI * radiusCm * radiusCm;
+}
+
+/**
+ * Evaluate the full-Moon sky darkening at a given separation.
+ *
+ * A constant plus two exponentials, anchored to give 4.5 mag at 0 deg
+ * and 2.15 mag at 90 deg, matching the V-band Moon-darkening
+ * measurements of Houdashelt et al. (2005).
+ *
+ * @param {number} sepDeg - Moon-target separation in degrees; negative
+ *     values are clamped to 0.
+ * @returns {number} Sky darkening in magnitudes for a full Moon.
+ */
+function snrMoonSep(sepDeg) {
+  var s = Math.max(0, sepDeg);
+  return 2.10 + 1.832 * Math.exp(-s / 25.0) + 0.568 * Math.exp(-s / 6.0);
+}
+
+/**
+ * Evaluate the Moon's sky darkening for a given phase and altitude.
+ *
+ * The full-Moon curve is scaled by the illuminated fraction and by the
+ * sine of the Moon's altitude, so it vanishes at new Moon and below
+ * the horizon.
+ *
+ * @param {number} sepDeg - Moon-target separation in degrees.
+ * @param {number} illum - Illuminated fraction, 0 (new) to 1 (full).
+ * @param {number} moonAltDeg - Moon altitude in degrees.
+ * @returns {number} Sky darkening in magnitudes, >= 0.
+ */
+function snrMoonDarkening(sepDeg, illum, moonAltDeg) {
+  var dim = Math.max(0, Math.sin(d2r(moonAltDeg)));
+  return illum * snrMoonSep(sepDeg) * dim;
+}
+
+/**
+ * Compute the sky surface brightness including the Moon.
+ *
+ * @param {number} skyDark - Dark-sky brightness in mag arcsec^-2.
+ * @param {number} deltaMag - Moon darkening in magnitudes, >= 0.
+ * @returns {number} Sky brightness in mag arcsec^-2, <= skyDark.
+ */
+function snrSkyMag(skyDark, deltaMag) { return skyDark - deltaMag; }
+
+/**
+ * Compute the target photoelectron rate.
+ *
+ * The V-band zero point is attenuated by the target brightness, by
+ * extinction along the extra (X - 1) airmasses of atmosphere, and by
+ * the total system efficiency.
+ *
+ * @param {number} areaCm2 - Collecting area in cm^2.
+ * @param {number} mag - Target V magnitude.
+ * @param {number} airmass - Airmass X.
+ * @param {number} kExt - Extinction in mag per airmass.
+ * @param {number} eff - Total system efficiency, 0 to 1.
+ * @returns {number} Target rate in e- s^-1.
+ */
+function snrSourceRate(areaCm2, mag, airmass, kExt, eff) {
+  return SNR_V_ZERP * areaCm2 * Math.pow(10, -0.4 * mag) *
+         Math.pow(10, -0.4 * kExt * (airmass - 1.0)) * eff;
+}
+
+/**
+ * Compute the sky photoelectron rate per pixel.
+ *
+ * The sky zero point per square arcsec is integrated over the pixel
+ * area (plate scale squared), with the same extinction and efficiency
+ * factors as the source.
+ *
+ * @param {number} areaCm2 - Collecting area in cm^2.
+ * @param {number} skyMag - Sky brightness in mag arcsec^-2.
+ * @param {number} airmass - Airmass X.
+ * @param {number} kExt - Extinction in mag per airmass.
+ * @param {number} eff - Total system efficiency, 0 to 1.
+ * @param {number} pixScaleArcsec - Plate scale in arcsec per pixel.
+ * @returns {number} Sky rate per pixel in e- s^-1 pixel^-1.
+ */
+function snrSkyRate(areaCm2, skyMag, airmass, kExt, eff, pixScaleArcsec) {
+  return SNR_V_ZERP * areaCm2 * Math.pow(10, -0.4 * skyMag) *
+         Math.pow(10, -0.4 * kExt * (airmass - 1.0)) * eff *
+         pixScaleArcsec * pixScaleArcsec;
+}
+
+/**
+ * Compute the effective number of pixels in the PSF.
+ *
+ * @param {number} fwhmArcsec - PSF full width at half maximum in arcsec.
+ * @param {number} pixScaleArcsec - Plate scale in arcsec per pixel.
+ * @returns {number} Effective pixel count, 1.1364 (FWHM / scale)^2.
+ */
+function snrPsfPixels(fwhmArcsec, pixScaleArcsec) {
+  return SNR_PSF_COEF * Math.pow(fwhmArcsec / pixScaleArcsec, 2);
+}
+
+/**
+ * Compute the S/N of a single exposure of duration t.
+ *
+ * SNR = a t / sqrt(a t + c t + r), where a is the source rate in
+ * e- s^-1, c the sky-plus-dark rate over the PSF in e- s^-1, and r the
+ * read-noise variance in e-^2. The read noise is added once per
+ * exposure.
+ *
+ * @param {number} srcRate - Target rate in e- s^-1.
+ * @param {number} skyRatePerPix - Sky rate in e- s^-1 pixel^-1.
+ * @param {number} nPix - Effective PSF pixel count.
+ * @param {number} darkRatePerPix - Dark current in e- s^-1 pixel^-1.
+ * @param {number} readNoise - Read noise in e- (rms) per pixel.
+ * @param {number} tSec - Exposure time in seconds.
+ * @returns {number} Signal-to-noise ratio.
+ */
+function snrValue(srcRate, skyRatePerPix, nPix, darkRatePerPix, readNoise, tSec) {
+  var c = nPix * (skyRatePerPix + darkRatePerPix);
+  var r = nPix * readNoise * readNoise;
+  var signal = srcRate * tSec;
+  var noise = Math.sqrt(signal + c * tSec + r);
+  return signal / noise;
+}
+
+/**
+ * Solve for the exposure time that reaches a target S/N.
+ *
+ * Solves SNR = a t / sqrt((a + c) t + r) = T for the positive root,
+ * which is quadratic in t.
+ *
+ * @param {number} srcRate - Target rate in e- s^-1.
+ * @param {number} skyRatePerPix - Sky rate in e- s^-1 pixel^-1.
+ * @param {number} nPix - Effective PSF pixel count.
+ * @param {number} darkRatePerPix - Dark current in e- s^-1 pixel^-1.
+ * @param {number} readNoise - Read noise in e- (rms) per pixel.
+ * @param {number} targetSnr - Desired S/N, T > 0.
+ * @returns {number} Exposure time in seconds.
+ */
+function snrSolveTime(srcRate, skyRatePerPix, nPix, darkRatePerPix, readNoise, targetSnr) {
+  var ac = srcRate + nPix * (skyRatePerPix + darkRatePerPix);
+  var r = nPix * readNoise * readNoise;
+  var T = targetSnr;
+  var disc = (T * T * ac) * (T * T * ac) + 4 * srcRate * srcRate * T * T * r;
+  return (T * T * ac + Math.sqrt(disc)) / (2 * srcRate * srcRate);
+}
+
+/**
+ * Low-precision geocentric Sun position (Meeus).
+ *
+ * @param {number} jd - Julian Date.
+ * @returns {{raH: number, dec: number}} RA in hours and Dec in degrees.
+ */
 function sunRaDec(jd) {
   var n = jd - 2451545.0;
   var L = 280.460 + 0.9856474 * n;
@@ -333,11 +650,26 @@ function sunRaDec(jd) {
   return { raH: raH, dec: dec };
 }
 
+/**
+ * Sun's geometric altitude for an observer.
+ *
+ * @param {number} jd - Julian Date.
+ * @param {number} latDeg - Observer latitude in degrees.
+ * @param {number} lonDeg - Observer longitude in degrees, positive east.
+ * @returns {number} Solar altitude in degrees.
+ */
 function sunAltitude(jd, latDeg, lonDeg) {
   var sun = sunRaDec(jd);
   return altitude(sun.raH, sun.dec, jd, latDeg, lonDeg);
 }
 
+/**
+ * Classify sky darkness from solar altitude.
+ *
+ * @param {number} altDeg - Solar altitude in degrees.
+ * @returns {string} One of "day", "civil", "nautical", "astro", "night",
+ *     per the 0/-6/-12/-18 deg thresholds.
+ */
 function classifySunAlt(altDeg) {
   if (altDeg > 0) return "day";
   if (altDeg > -6) return "civil";
@@ -346,7 +678,19 @@ function classifySunAlt(altDeg) {
   return "night";
 }
 
-// Twilight shading intervals [[startMs, endMs, kind], ...] on a 10-min grid.
+/**
+ * Split a time span into solar-shading intervals.
+ *
+ * Sun-altitude crossings of 0/-6/-12/-18 deg are located on a 10-min
+ * sample grid with linear interpolation.
+ *
+ * @param {number} startMs - Span start, epoch ms.
+ * @param {number} endMs - Span end, epoch ms.
+ * @param {number} latDeg - Observer latitude in degrees.
+ * @param {number} lonDeg - Observer longitude in degrees, positive east.
+ * @returns {number[][]} Rows [startMs, endMs, kind], kind per
+ *     classifySunAlt.
+ */
 function sunShading(startMs, endMs, latDeg, lonDeg) {
   var step = 10 * 60 * 1000;
   var n = Math.ceil((endMs - startMs) / step) + 1;
@@ -379,8 +723,17 @@ function sunShading(startMs, endMs, latDeg, lonDeg) {
   return out;
 }
 
-// Contiguous true runs in a boolean sample array -> [[aMs, bMs], ...].
-// Samples sit at startMs + i*stepMs; run endpoints extend half a step.
+/**
+ * Contiguous true runs in a boolean sample array.
+ *
+ * Samples sit at startMs + i * stepMs; run endpoints extend half a step
+ * in each direction.
+ *
+ * @param {boolean[]} ok - Sample flags.
+ * @param {number} startMs - Epoch ms of the first sample.
+ * @param {number} stepMs - Sample spacing, ms.
+ * @returns {number[][]} Rows [startMs, endMs].
+ */
 function trueRuns(ok, startMs, stepMs) {
   var runs = [], i = 0, n = ok.length;
   while (i < n) {
@@ -393,8 +746,18 @@ function trueRuns(ok, startMs, stepMs) {
   return runs;
 }
 
-// Transit times (ms): instants when the local sidereal time passes the
-// target's RA (the LST-RA wrapped difference crosses 180 deg downward).
+/**
+ * Transit times: instants when the local sidereal time passes the target's RA.
+ *
+ * The wrapped LST-RA difference crossing 180 deg downward; 10-min scan
+ * with bisection refinement.
+ *
+ * @param {number} raH - Target right ascension in hours.
+ * @param {number} startMs - Scan start, epoch ms.
+ * @param {number} endMs - Scan end, epoch ms.
+ * @param {number} lonDeg - Observer longitude in degrees, positive east.
+ * @returns {number[]} Transit times in epoch ms.
+ */
 function transitTimes(raH, startMs, endMs, lonDeg) {
   var times = [];
   var step = 10 * 60 * 1000;
@@ -415,8 +778,19 @@ function transitTimes(raH, startMs, endMs, lonDeg) {
   return times;
 }
 
-// Times (ms) at which the Sun's altitude crosses altThreshold (deg),
-// both rising and falling; 10-min scan with bisection refinement.
+/**
+ * Times at which the Sun's altitude crosses a threshold.
+ *
+ * Both rising and falling crossings; 10-min scan with bisection
+ * refinement.
+ *
+ * @param {number} startMs - Scan start, epoch ms.
+ * @param {number} endMs - Scan end, epoch ms.
+ * @param {number} latDeg - Observer latitude in degrees.
+ * @param {number} lonDeg - Observer longitude in degrees, positive east.
+ * @param {number} altThreshold - Threshold solar altitude in degrees.
+ * @returns {number[]} Crossing times in epoch ms.
+ */
 function twilightEvents(startMs, endMs, latDeg, lonDeg, altThreshold) {
   var out = [];
   var step = 10 * 60 * 1000;
@@ -439,6 +813,36 @@ function twilightEvents(startMs, endMs, latDeg, lonDeg, altThreshold) {
   return out;
 }
 
+/**
+ * Times at which the Sun crosses 0, -6, -12, -18 deg, with direction.
+ *
+ * The IAU twilight limits, lettered S (sunrise/sunset), C (civil),
+ * N (nautical) and A (astronomical). Built on twilightEvents; each
+ * crossing records the Sun's direction, dir, of +1 rising or -1
+ * setting, from the altitude 5 min either side of the crossing.
+ *
+ * @param {number} startMs - Scan start, epoch ms.
+ * @param {number} endMs - Scan end, epoch ms.
+ * @param {number} latDeg - Observer latitude in degrees.
+ * @param {number} lonDeg - Observer longitude in degrees, positive east.
+ * @returns {Object[]} Crossings sorted by time; each entry is
+ *     {ms (epoch ms), alt (the threshold in degrees), dir (+1 or -1)}.
+ */
+function sunEvents(startMs, endMs, latDeg, lonDeg) {
+  var thresholds = [0, -6, -12, -18];
+  var out = [];
+  for (var ti = 0; ti < thresholds.length; ti++) {
+    var evs = twilightEvents(startMs, endMs, latDeg, lonDeg, thresholds[ti]);
+    for (var ei = 0; ei < evs.length; ei++) {
+      var a = sunAltitude(jdFromUtcMs(evs[ei] - 5 * 60 * 1000), latDeg, lonDeg);
+      var b = sunAltitude(jdFromUtcMs(evs[ei] + 5 * 60 * 1000), latDeg, lonDeg);
+      out.push({ ms: evs[ei], alt: thresholds[ti], dir: b > a ? 1 : -1 });
+    }
+  }
+  out.sort(function (p, q) { return p.ms - q.ms; });
+  return out;
+}
+
 // ------------------------------------------------------------------- Moon
 // Truncated NAO 1954/ELP theory (105 terms): geocentric ecliptic
 // coordinates in the mean equinox of date, nutation omitted. Ported to
@@ -450,7 +854,21 @@ function twilightEvents(startMs, endMs, latDeg, lonDeg, altThreshold) {
 var MOON_PI2 = 2 * Math.PI;
 var MOON_ARC = 3600 * (180 / Math.PI); // arcseconds per radian
 var MOON_EARTH_RADIUS_AU = 6378.1366 / 1.4959787069098932e+8;
+/**
+ * Fractional part of x.
+ *
+ * @param {number} x - Any real number.
+ * @returns {number} x - floor(x), in [0, 1).
+ */
 function moFrac(x) { return x - Math.floor(x); }
+/**
+ * Mean obliquity of the ecliptic.
+ *
+ * IAU 1980 polynomial in T (Julian centuries from J2000).
+ *
+ * @param {number} jd - Julian Date.
+ * @returns {number} Obliquity in degrees.
+ */
 function meanObliqDeg(jd) {
   var t = (jd - 2451545.0) / 36525.0;
   var asec = (((((-0.0000000434 * t
@@ -460,6 +878,18 @@ function meanObliqDeg(jd) {
       - 46.836769) * t + 84381.406);
   return asec / 3600.0;
 }
+/**
+ * Geocentric Moon position from the truncated NAO 1954/ELP theory.
+ *
+ * 105 terms; ecliptic coordinates in the mean equinox of date, nutation
+ * omitted. Agrees with astropy's geocentric apparent position to
+ * ~0.015 deg (residual is nutation + delta T).
+ *
+ * @param {number} jd - Julian Date.
+ * @returns {{geo_eclip_lon: number, geo_eclip_lat: number, distance_au: number}}
+ *     Ecliptic longitude in radians, latitude in radians, and geocentric
+ *     distance in AU.
+ */
 function calcMoon(jd) {
     var T = (jd - 2451545.0) / 36525;
     function DeclareArray1(xmin, xmax) {
@@ -715,6 +1145,13 @@ function calcMoon(jd) {
     };
 }
 
+/**
+ * Moon's equatorial position and geocentric distance.
+ *
+ * @param {number} jd - Julian Date.
+ * @returns {{raH: number, dec: number, distAu: number}} RA in hours,
+ *     Dec in degrees, geocentric distance in AU.
+ */
 function moonRaDec(jd) {
   var m = calcMoon(jd);
   var eps = d2r(meanObliqDeg(jd));
@@ -729,12 +1166,28 @@ function moonRaDec(jd) {
   if (raH < 0) raH += 24.0;
   return { raH: raH, dec: r2d(Math.asin(ze)), distAu: m.distance_au };
 }
+/**
+ * Angular separation between two equatorial positions.
+ *
+ * @param {number} raH1 - RA of position 1, hours.
+ * @param {number} dec1 - Dec of position 1, degrees.
+ * @param {number} raH2 - RA of position 2, hours.
+ * @param {number} dec2 - Dec of position 2, degrees.
+ * @returns {number} Separation in degrees.
+ */
 function angularSep(raH1, dec1, raH2, dec2) {
   var d1 = d2r(dec1), d2 = d2r(dec2);
   var dra = d2r(raH1 * 15.0 - raH2 * 15.0);
   var c = Math.sin(d1) * Math.sin(d2) + Math.cos(d1) * Math.cos(d2) * Math.cos(dra);
   return r2d(Math.acos(Math.max(-1, Math.min(1, c))));
 }
+/**
+ * Moon's elongation and illuminated fraction.
+ *
+ * @param {number} jd - Julian Date.
+ * @returns {{sepDeg: number, illum: number}} Solar-Moon separation in
+ *     degrees and illuminated fraction, 0 (new) to 1 (full).
+ */
 function moonPhase(jd) {
   var m = moonRaDec(jd);
   var s = sunRaDec(jd);
@@ -745,6 +1198,14 @@ function moonPhase(jd) {
 }
 
 
+/**
+ * Split a sexagesimal entry into its numeric parts.
+ *
+ * @param {string} text - Entry with colons, h/m/s or
+ *     degree/arcminute/arcsecond marks, or space separators.
+ * @returns {number[]} One number per part, in order; NaN where a part is
+ *     not numeric.
+ */
 function _parts(text) {
   var s = String(text).trim().toLowerCase();
   var tokens = ["h", "m", "s", "deg", "d", "\u00b0", "\u2032", "\u2033"];
@@ -753,7 +1214,16 @@ function _parts(text) {
   return s.replace(/:/g, " ").split(/\s+/).filter(function (p) { return p !== ""; }).map(Number);
 }
 
-// RA as h:m:s, h m s, decimal hours, or decimal degrees (> 24). Returns hours.
+/**
+ * Parse a right ascension entry to decimal hours.
+ *
+ * Accepts h:m:s, h m s, decimal hours, or decimal degrees (values > 24
+ * are divided by 15).
+ *
+ * @param {string} text - RA entry.
+ * @returns {number} RA in hours, [0, 24).
+ * @throws {Error} When the entry is empty or malformed.
+ */
 function parseRa(text) {
   var s = String(text).trim();
   if (!s) throw new Error("RA is empty");
@@ -773,7 +1243,16 @@ function parseRa(text) {
   return (value > 24 ? value / 15 : value) % 24;
 }
 
-// Dec as d:m:s, d m s, or decimal degrees. Returns degrees.
+/**
+ * Parse a declination entry to decimal degrees.
+ *
+ * Accepts d:m:s, d m s, or decimal degrees; a negative leading degree
+ * part signs the whole entry.
+ *
+ * @param {string} text - Dec entry.
+ * @returns {number} Declination in degrees, [-90, 90].
+ * @throws {Error} When the entry is empty or malformed.
+ */
 function parseDec(text) {
   var s = String(text).trim();
   if (!s) throw new Error("Dec is empty");
@@ -799,8 +1278,20 @@ function parseDec(text) {
 // The full workspace state lives in location.hash as "#w=<urlencoded JSON>";
 // encodeShareFragment / decodeShareFragment are the engine-tested pair that
 // writes and reads it.
+/**
+ * Encode a workspace as a location.hash fragment.
+ *
+ * @param {string} json - Workspace JSON text.
+ * @returns {string} "#w=" + URL-encoded text.
+ */
 function encodeShareFragment(json) { return "#w=" + encodeURIComponent(json); }
 
+/**
+ * Escape a string for safe HTML text content.
+ *
+ * @param {string} s - Text.
+ * @returns {string} Text with &, <, >, double quote and single quote escaped.
+ */
 function htmlEscape(s) {
   return String(s)
     .replace(/&/g, "&amp;")
@@ -810,6 +1301,13 @@ function htmlEscape(s) {
     .replace(/'/g, "&#39;");
 }
 
+/**
+ * Read a workspace from a location.hash fragment.
+ *
+ * @param {string} hash - location.hash value, or empty.
+ * @returns {?Object} The parsed workspace object, or null when the
+ *     fragment is absent or not a JSON object.
+ */
 function decodeShareFragment(hash) {
   var h = String(hash || "");
   if (h.indexOf("#w=") !== 0) return null;
@@ -819,6 +1317,97 @@ function decodeShareFragment(hash) {
   try { s = JSON.parse(text); } catch (e2) { return null; }
   if (!s || typeof s !== "object" || Array.isArray(s)) return null;
   return s;
+}
+
+/**
+ * J2000 coordinates of a target at an instant.
+ *
+ * A target without an ephemeris returns its catalog ra/dec (J2000),
+ * unchanged. A target with a Horizons ephemeris (obj.ephemeris, rows
+ * [ms, raDeg, decDeg] sorted by time) is linearly interpolated in ra
+ * and dec between the bracketing rows, the ra difference taken across
+ * the 0/360 deg wrap; times outside the table clamp to the nearest
+ * row, so a moving target simply freezes before and after its
+ * coverage.
+ *
+ * @param {{ra?: string, dec?: string, ephemeris?: ?Array}} obj - Target
+ *     record: ra and dec are J2000 coordinates in the usual string form
+ *     (h:m:s or decimal degrees for ra, d:m:s or decimal for dec), and
+ *     ephemeris is the Horizons rows [ms, raDeg, decDeg]. At least one of
+ *     ra/dec or ephemeris must be present.
+ * @param {number} ms - Epoch ms.
+ * @returns {{raDeg: number, dec: number}} J2000 coordinates; raDeg in
+ *     degrees, 0-360.
+ * @throws {Error} When the target has neither usable ra/dec nor an
+ *     ephemeris.
+ */
+function objCoords(obj, ms) {
+  var ep = obj.ephemeris;
+  if (ep && ep.length > 0) {
+    if (ms <= ep[0][0]) return { raDeg: wrap360(ep[0][1]), dec: ep[0][2] };
+    for (var i = 0; i < ep.length - 1; i++) {
+      if (ms <= ep[i + 1][0]) {
+        var a = ep[i], b = ep[i + 1];
+        var f = (b[0] - a[0]) === 0 ? 0 : (ms - a[0]) / (b[0] - a[0]);
+        var dra = (b[1] - a[1] + 540) % 360 - 180;
+        return { raDeg: wrap360(a[1] + dra * f), dec: a[2] + (b[2] - a[2]) * f };
+      }
+    }
+    var last = ep[ep.length - 1];
+    return { raDeg: wrap360(last[1]), dec: last[2] };
+  }
+  return { raDeg: parseRa(obj.ra) * 15, dec: parseDec(obj.dec) };
+}
+
+/**
+ * Parse a JPL Horizons ephemeris response into [ms, raDeg, decDeg] rows.
+ *
+ * Reads the 'date = YYYY-MM-DD HH:MM:SS' (UTC) and
+ * 'radec_j2000 = RA Dec' (degrees) lines of a horizons.api reply with
+ * custom_fields=radec_j2000. Each ra/dec line pairs with the most
+ * recent date line; comment and error lines are skipped.
+ *
+ * @param {string} text - Raw response body.
+ * @returns {Array<Array<number>>} Rows [epoch ms, raDeg, decDeg] in
+ *     time order; raDeg as returned (0-360).
+ * @throws {Error} When no ephemeris rows are present.
+ */
+function horizonsParse(text) {
+  var rows = [];
+  var ms = null;
+  var lines = String(text).split("\n");
+  for (var i = 0; i < lines.length; i++) {
+    var d = /^\s*date\s*=\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/.exec(lines[i]);
+    if (d) {
+      var q = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(d[1]);
+      ms = Date.UTC(+q[1], +q[2] - 1, +q[3], +q[4], +q[5], +q[6]);
+      continue;
+    }
+    var r = /^\s*radec_j2000\s*=\s*(-?[\d.]+)\s+(-?[\d.]+)/.exec(lines[i]);
+    if (r && ms != null) rows.push([ms, +r[1], +r[2]]);
+  }
+  if (rows.length === 0) throw new Error("no ephemeris rows in response");
+  return rows;
+}
+
+/**
+ * One-line Simbad info for a target, as shown on its edit row and in
+ * the chart tooltip.
+ *
+ * @param {{mag?: ?number, spec?: ?string, plx?: ?number,
+ *     ephemeris?: ?Array}} obj - Target record; mag is the V magnitude,
+ *     spec the spectral type, plx the parallax in mas, ephemeris the
+ *     Horizons rows; each is absent or null when the lookup had none.
+ * @returns {string} e.g. "V 0.03 \u00b7 A0V \u00b7 130.2 mas \u00b7 eph 72 pts";
+ *     empty when the target carries no lookup info.
+ */
+function targetInfoText(obj) {
+  var parts = [];
+  if (isFinite(obj.mag)) parts.push("V " + obj.mag.toFixed(2));
+  if (obj.spec) parts.push(String(obj.spec));
+  if (isFinite(obj.plx)) parts.push(obj.plx.toFixed(1) + " mas");
+  if (obj.ephemeris) parts.push("eph " + obj.ephemeris.length + " pts");
+  return parts.join(" \u00b7 ");
 }
 
 /*JS-CORE-END*/
@@ -843,14 +1432,40 @@ var THEME = {
 var STATE_KEY = "airmass-gui-site-state";
 var FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
+/**
+ * Shortcut for document.getElementById.
+ *
+ * @param {string} id - Element id.
+ * @returns {HTMLElement}
+ */
 function $(id) { return document.getElementById(id); }
+/**
+ * Set the status line.
+ *
+ * @param {string} msg - Message; empty clears it.
+ */
 function setStatus(msg) { $("status").textContent = msg || ""; }
 
 // ------------------------------------------------------------------- state
+/**
+ * Deep-copy a JSON-compatible value.
+ *
+ * @param {*} o - Value to copy.
+ * @returns {*} Independent copy of the value.
+ */
 function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
 
-// View/display options with defaults; normalizeState fills them in so older
-// saved states and imported files keep working.
+/**
+ * Fill the display options with their defaults.
+ *
+ * Keeps older saved states and imported files working.
+ *
+ * @param {Object} s - Workspace state; its options object is completed
+ *     in place. The curve option is validated against the three modes and
+ *     falls back to "airmass", and the snr sub-object is normalized by
+ *     normalizeSnr.
+ * @returns {Object} The same state object.
+ */
 function normalizeState(s) {
   var opts = {
     threshold: 1.7,
@@ -858,18 +1473,77 @@ function normalizeState(s) {
     moon: false,
     civil: false,
     nautical: false,
+    dusk: true,
+    calendar: true,
+    weather: false,
+    curve: "airmass",
   };
   if (s.options) {
     for (var k in opts) { if (s.options[k] != null) opts[k] = s.options[k]; }
   }
+  if (opts.curve !== "airmass" && opts.curve !== "altitude" && opts.curve !== "azimuth")
+    opts.curve = "airmass";
   s.options = opts;
+  s.options.snr = normalizeSnr(s.options.snr);
   return s;
 }
 
+// Default S/N estimate settings; normalized and clamped by normalizeSnr.
+var SNR_DEFAULTS = { ap: 2.0, fwhm: 1.0, pix: 0.2, rn: 5.0, dark: 0.1,
+                     eff: 50, k: 0.10, target: 10, fixed: 0 };
+
+/**
+ * Normalize the S/N estimate settings, filling and clamping defaults.
+ *
+ * Each field is read from the saved settings (sn); a missing or
+ * non-numeric value takes its default. Aperture, FWHM, plate scale and
+ * target S/N are clamped to positive values and efficiency to at most
+ * 100 percent.
+ *
+ * @param {?Object} sn - Saved S/N settings, or null for a fresh state.
+ * @returns {Object} Settings with every field present and in range: ap
+ *     (aperture, m), fwhm (PSF, arcsec), pix (plate scale, arcsec per
+ *     pixel), rn (read noise, e-), dark (dark current, e- s^-1 pixel^-1),
+ *     eff (efficiency, percent), k (extinction, mag per airmass),
+ *     target (target S/N), and fixed (fixed exposure, s; 0 means solve
+ *     for the time).
+ */
+function normalizeSnr(sn) {
+  function num(key, min) {
+    var v = sn ? Number(sn[key]) : NaN;
+    if (!isFinite(v) || v < min) return SNR_DEFAULTS[key];
+    return v;
+  }
+  var eff = num("eff", 0);
+  if (eff > 100) eff = 100;
+  return {
+    ap: num("ap", 0.01),
+    fwhm: num("fwhm", 0.01),
+    pix: num("pix", 0.01),
+    rn: num("rn", 0),
+    dark: num("dark", 0),
+    eff: eff,
+    k: num("k", 0),
+    target: num("target", 1),
+    fixed: num("fixed", 0),
+  };
+}
+
+/**
+ * Check that a value has the workspace shape.
+ *
+ * @param {*} s - Value to check.
+ * @returns {boolean} True when s has observatory, objects, and time_range.
+ */
 function stateLooksValid(s) {
   return !!(s && s.observatory && Array.isArray(s.objects) && s.time_range);
 }
 
+/**
+ * Load the initial state: URL fragment, then saved state, then the embedded workspace.
+ *
+ * @returns {Object} Normalized state.
+ */
 function loadState() {
   var s = null;
   try {
@@ -891,6 +1565,9 @@ function loadState() {
 
 var state = loadState();
 
+/**
+ * Persist the state to browser storage and the URL fragment.
+ */
 function saveState() {
   try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch (e) { /* private mode */ }
   try {
@@ -900,6 +1577,12 @@ function saveState() {
 
 // ---------------------------------------------------------- time / timezone
 var _fmtCache = {};
+/**
+ * Cached Intl.DateTimeFormat for 'YYYY-MM-DD HH:MM:SS' parts in a time zone.
+ *
+ * @param {string} tz - IANA time zone name.
+ * @returns {Intl.DateTimeFormat}
+ */
 function tzFormatter(tz) {
   if (!_fmtCache[tz]) {
     _fmtCache[tz] = new Intl.DateTimeFormat("en-CA", {
@@ -910,6 +1593,12 @@ function tzFormatter(tz) {
   }
   return _fmtCache[tz];
 }
+/**
+ * Cached Intl.DateTimeFormat for short time-axis labels in a time zone.
+ *
+ * @param {string} tz - IANA time zone name.
+ * @returns {Intl.DateTimeFormat}
+ */
 function fmtLabel(tz) {
   if (!_fmtCache["label:" + tz]) {
     _fmtCache["label:" + tz] = new Intl.DateTimeFormat("en-US", {
@@ -919,19 +1608,45 @@ function fmtLabel(tz) {
   }
   return _fmtCache["label:" + tz];
 }
+/**
+ * Local date parts of an instant in a time zone.
+ *
+ * @param {string} tz - IANA time zone name.
+ * @param {number} ms - Epoch ms.
+ * @returns {Object} year, month, day, hour, minute, second.
+ */
 function tzParts(tz, ms) {
   var out = {};
   var parts = tzFormatter(tz).formatToParts(new Date(ms));
   for (var i = 0; i < parts.length; i++) out[parts[i].type] = Number(parts[i].value);
   return out;
 }
+/**
+ * Validate a time zone name, falling back to UTC.
+ *
+ * @param {string} tz - IANA time zone name, or empty.
+ * @returns {string} A usable time zone name.
+ */
 function resolveTz(tz) {
   if (!tz) return "UTC";
   try { new Intl.DateTimeFormat("en-CA", { timeZone: tz }); return tz; }
   catch (e) { return "UTC"; }
 }
 
-// Naive wall time (y, mo, d, h, mi, s) in tz -> UTC epoch ms (iterates to fix the offset).
+/**
+ * Convert a naive wall time in a time zone to UTC epoch ms.
+ *
+ * Iterates up to four times to fix the UTC offset (DST transitions).
+ *
+ * @param {string} tz - IANA time zone name.
+ * @param {number} y - Year.
+ * @param {number} mo - Month, 1-12.
+ * @param {number} d - Day of month.
+ * @param {number} h - Hour, 0-23.
+ * @param {number} mi - Minute, 0-59.
+ * @param {number} s - Second, 0-59.
+ * @returns {number} Epoch ms.
+ */
 function wallToUtc(tz, y, mo, d, h, mi, s) {
   var want = Date.UTC(y, mo - 1, d, h, mi, s);
   var guess = want;
@@ -944,22 +1659,51 @@ function wallToUtc(tz, y, mo, d, h, mi, s) {
   return guess;
 }
 
+/**
+ * UTC epoch ms of the workspace start stamp (local wall time).
+ *
+ * @returns {?number} null when the start string is not 'YYYY-MM-DD HH:MM'.
+ */
 function startUtcMs() {
   var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(state.time_range.start || ""));
   if (!m) return null;
   return wallToUtc(resolveTz(state.observatory.timezone),
                    +m[1], +m[2], +m[3], +m[4], +m[5], 0);
 }
+/**
+ * UTC epoch ms of start + duration.
+ *
+ * @returns {?number} null when startUtcMs is null.
+ */
 function endUtcMs() {
   var s = startUtcMs();
   return s == null ? null : s + state.time_range.days * 86400000;
 }
+/**
+ * Zero-pad an integer to two digits.
+ *
+ * @param {number} n - Integer.
+ * @returns {string}
+ */
 function pad2(n) { return (n < 10 ? "0" : "") + n; }
+/**
+ * Format an instant as 'YYYY-MM-DD HH:MM' in the observatory's time zone.
+ *
+ * @param {number} ms - Epoch ms.
+ * @returns {string}
+ */
 function localStamp(ms) {
   var p = tzParts(resolveTz(state.observatory.timezone), ms);
   return p.year + "-" + pad2(p.month) + "-" + pad2(p.day) +
          " " + pad2(p.hour) + ":" + pad2(p.minute);
 }
+/**
+ * First local midnight at or after an instant.
+ *
+ * @param {string} tz - IANA time zone name.
+ * @param {number} afterMs - Epoch ms.
+ * @returns {number} Epoch ms of the next local midnight.
+ */
 function nextLocalMidnight(tz, afterMs) {
   var ms = afterMs;
   for (var i = 0; i < 5; i++) {
@@ -970,6 +1714,17 @@ function nextLocalMidnight(tz, afterMs) {
   }
   return afterMs;
 }
+/**
+ * Time-axis tick instants for a view.
+ *
+ * Chooses a step (1/12 h up to 96 h) keeping the tick count at 12 or
+ * fewer, anchored to local midnight.
+ *
+ * @param {number} startMs - View start, epoch ms.
+ * @param {number} endMs - View end, epoch ms.
+ * @param {string} tz - IANA time zone name.
+ * @returns {number[]} Tick instants in epoch ms.
+ */
 function timeTicks(startMs, endMs, tz) {
   var hours = (endMs - startMs) / 3600000;
   var candidates = [1 / 12, 1 / 6, 1 / 4, 0.25, 0.5, 1, 2, 3, 4, 6, 12, 24, 48, 72, 96];
@@ -987,6 +1742,9 @@ function timeTicks(startMs, endMs, tz) {
 }
 
 // ------------------------------------------------------------------ controls
+/**
+ * Push the state into every control on the page.
+ */
 function syncAllControls() {
   var obs = state.observatory;
   $("obs-title").textContent = obs.name || "Custom observatory";
@@ -1003,13 +1761,30 @@ function syncAllControls() {
   $("days").value = state.time_range.days;
   $("windows-chk").checked = !!state.options.windows;
   $("threshold").value = state.options.threshold;
+  $("curve-sel").value = state.options.curve;
+  var sn = state.options.snr;
+  $("snr-ap").value = sn.ap;
+  $("snr-fwhm").value = sn.fwhm;
+  $("snr-pix").value = sn.pix;
+  $("snr-rn").value = sn.rn;
+  $("snr-dark").value = sn.dark;
+  $("snr-eff").value = sn.eff;
+  $("snr-k").value = sn.k;
+  $("snr-target").value = sn.target;
+  $("snr-fixed").value = sn.fixed;
   $("moon-chk").checked = !!state.options.moon;
   $("civil-chk").checked = !!state.options.civil;
   $("nautical-chk").checked = !!state.options.nautical;
+  $("dusk-chk").checked = !!state.options.dusk;
+  $("weather-chk").checked = !!state.options.weather;
+  $("calendar-chk").checked = !!state.options.calendar;
   $("summary-panel").style.display = state.options.windows ? "" : "none";
   renderTargets();
 }
 
+/**
+ * Fill the preset combobox with the observatory list plus Custom.
+ */
 function buildPresetSelect() {
   var sel = $("preset");
   sel.innerHTML = "";
@@ -1025,6 +1800,9 @@ function buildPresetSelect() {
   sel.appendChild(custom);
 }
 
+/**
+ * Write the observatory form fields into the state, dropping the preset key when a field drifts from the preset.
+ */
 function commitObsFields() {
   var obs = state.observatory;
   var lat = parseFloat($("lat").value);
@@ -1053,12 +1831,20 @@ function commitObsFields() {
   obs.name = obs.preset || "Custom observatory";
 }
 
+/**
+ * Observe an observatory field edit: commit, save, redraw.
+ */
 function onObsField() {
   commitObsFields();
   saveState();
   scheduleRedraw();
 }
 
+/**
+ * Next unused palette color for a new target.
+ *
+ * @returns {string} Hex color.
+ */
 function nextColor() {
   var used = state.objects.map(function (o) { return o.color; });
   for (var i = 0; i < PALETTE.length; i++) {
@@ -1067,6 +1853,9 @@ function nextColor() {
   return PALETTE[state.objects.length % PALETTE.length];
 }
 
+/**
+ * Rebuild the per-target edit rows.
+ */
 function renderTargets() {
   var box = $("targets");
   box.innerHTML = "";
@@ -1078,17 +1867,50 @@ function renderTargets() {
       '<input placeholder="Name" title="Name">' +
       '<input placeholder="RA (h:m:s / deg)" title="RA">' +
       '<input placeholder="Dec (d:m:s / deg)" title="Dec">' +
+      '<input placeholder="V mag" title="V magnitude, used by the S/N estimate" inputmode="decimal">' +
+      '<span class="info" title="Lookup info; click to clear"></span>' +
+      '<button class="hz" title="Fetch this target\'s ephemeris from JPL Horizons (moving objects)" type="button">Horizons</button>' +
       '<button class="rm" title="Remove" type="button">&#215;</button>';
     var kids = row.children;
     kids[0].value = /^#[0-9a-fA-F]{6}$/.test(obj.color || "") ? obj.color : PALETTE[i % PALETTE.length];
     kids[1].value = obj.name || "";
     kids[2].value = obj.ra || "";
     kids[3].value = obj.dec || "";
+    kids[4].value = isFinite(obj.mag) ? obj.mag : "";
+    kids[5].textContent = targetInfoText(obj);
     kids[0].addEventListener("input", function () { obj.color = this.value; afterTargetChange(); });
     kids[1].addEventListener("input", function () { obj.name = this.value; afterTargetChange(); });
-    kids[2].addEventListener("input", function () { obj.ra = this.value; afterTargetChange(); });
-    kids[3].addEventListener("input", function () { obj.dec = this.value; afterTargetChange(); });
-    kids[4].addEventListener("click", function () {
+    kids[2].addEventListener("input", function () { obj.ra = this.value; delete obj.ephemeris; afterTargetChange(); });
+    kids[3].addEventListener("input", function () { obj.dec = this.value; delete obj.ephemeris; afterTargetChange(); });
+    kids[4].addEventListener("input", function () {
+      var v = parseFloat(this.value);
+      if (isFinite(v)) obj.mag = v; else delete obj.mag;
+      afterTargetChange();
+    });
+    kids[5].addEventListener("click", function () {
+      delete obj.mag; delete obj.spec; delete obj.plx; delete obj.ephemeris;
+      renderTargets();
+      afterTargetChange();
+    });
+    kids[6].addEventListener("click", function () {
+      var nm = obj.name ? String(obj.name).trim() : "";
+      if (!nm) {
+        setStatus("Give this target a name to fetch its Horizons ephemeris");
+        return;
+      }
+      setStatus("Fetching ephemeris for \u201c" + nm + "\u201d from Horizons\u2026");
+      horizonsLookup(nm)
+        .then(function (rows) {
+          obj.ephemeris = rows;
+          renderTargets();
+          afterTargetChange();
+          setStatus("Stored " + rows.length + " ephemeris points for \u201c" + nm + "\u201d");
+        })
+        .catch(function (error) {
+          setStatus(error.message);
+        });
+    });
+    kids[7].addEventListener("click", function () {
       state.objects.splice(i, 1);
       renderTargets();
       afterTargetChange();
@@ -1097,6 +1919,9 @@ function renderTargets() {
   });
 }
 
+/**
+ * Save and redraw after a target row edit.
+ */
 function afterTargetChange() {
   saveState();
   scheduleRedraw();
@@ -1104,6 +1929,11 @@ function afterTargetChange() {
 
 var WS_KEY = "airmass-gui:workspaces";
 
+/**
+ * Read named workspaces from browser storage.
+ *
+ * @returns {Object} Name -> state map, {} when absent or corrupt.
+ */
 function readWorkspaces() {
   try {
     var raw = localStorage.getItem(WS_KEY);
@@ -1113,10 +1943,18 @@ function readWorkspaces() {
   return {};
 }
 
+/**
+ * Write named workspaces to browser storage.
+ *
+ * @param {Object} ws - Name -> state map.
+ */
 function writeWorkspaces(ws) {
   try { localStorage.setItem(WS_KEY, JSON.stringify(ws)); } catch (e) { /* private mode */ }
 }
 
+/**
+ * Fill the workspace select box with the stored names.
+ */
 function refreshWsSelect() {
   var sel = $("ws-select");
   var names = Object.keys(readWorkspaces()).sort();
@@ -1136,6 +1974,13 @@ function refreshWsSelect() {
   });
 }
 
+/**
+ * Switch the page to a workspace document.
+ *
+ * @param {Object} s - Workspace state to load.
+ * @param {string} sourceLabel - Label for the status line (e.g. a file name).
+ * @returns {boolean} False, with a status message, when s is not a valid workspace.
+ */
 function loadWorkspaceDoc(s, sourceLabel) {
   if (!stateLooksValid(s)) {
     setStatus("Not a valid airmass-gui workspace");
@@ -1151,6 +1996,9 @@ function loadWorkspaceDoc(s, sourceLabel) {
   return true;
 }
 
+/**
+ * Download the state as a JSON workspace file.
+ */
 function exportWorkspace() {
   var doc = {
     version: 1,
@@ -1171,12 +2019,19 @@ function exportWorkspace() {
 }
 
 // --------------------------------------------------------------------- chart
+// Chart canvas and its 2D context.
 var canvas = $("chart");
 var ctx = canvas.getContext("2d");
 var lastPlot = null;  // plot rectangle from the most recent draw()
+var lastCurve = null;  // curve mode drawn in the most recent draw()
 var view = null;      // current time window {t0, t1}; null = full range
 var dragState = null; // in-progress edge/pan drag
 
+/**
+ * Size the canvas to its container width and the device pixel ratio.
+ *
+ * @returns {{w: number, h: number}} CSS pixel size of the canvas.
+ */
 function sizeCanvas() {
   var dpr = window.devicePixelRatio || 1;
   var w = Math.max(320, canvas.clientWidth);
@@ -1189,34 +2044,134 @@ function sizeCanvas() {
   return { w: w, h: h };
 }
 
+/**
+ * Format an instant as 'HH:MM' in a time zone.
+ *
+ * @param {string} tz - IANA time zone name.
+ * @param {number} ms - Epoch ms.
+ * @returns {string}
+ */
 function hmStr(tz, ms) {
   var p = tzParts(tz, ms);
   return pad2(p.hour) + ":" + pad2(p.minute);
 }
 
+/**
+ * Clear the observing-window summary panel.
+ */
 function clearSummary() {
   $("summary").innerHTML = "";
   $("summary-panel").style.display = "none";
 }
 
-// Per-target, per-local-night listing of windows where X <= threshold,
-// with transit times and airmass. Runs are sampled over the whole range
-// and assigned to the local day where they start (a run crossing midnight
-// is listed in full on its start day).
-function renderSummary() {
-  var box = $("summary");
-  box.innerHTML = "";
-  if (!state.options.windows) {
-    $("summary-panel").style.display = "none";
-    return;
+/**
+ * List the per-target, per-local-night observing windows in the summary panel.
+ *
+ * A window is a run with X <= threshold; each run is assigned to the local
+ * day where it starts (a run crossing midnight is listed in full on its
+ * start day). Transit times and their airmass are listed per day.
+ */
+
+/**
+ * Collect the S/N model inputs for one target at one instant.
+ *
+ * Resolves the target's coordinates, airmass, and the Moon's position
+ * and phase at the given time, combined with the state's S/N settings.
+ *
+ * @param {Object} obj - A state target (needs ra, dec, and a finite mag).
+ * @param {number} ms - Epoch milliseconds (UTC).
+ * @returns {?Object} The parameters for snrFor(), or null when the
+ *     target has no magnitude, is below the horizon, or S/N settings
+ *     are absent.
+ */
+function snrParamsFor(obj, ms) {
+  var sn = state.options.snr;
+  if (!sn || !isFinite(obj.mag)) return null;
+  var obs = state.observatory;
+  var jd = jdFromUtcMs(ms);
+  var c = objCoords(obj, ms);
+  var tt = precessIcrsToTete(c.raDeg, c.dec, jd);
+  var x = airmass(altitude(tt.raDeg / 15, tt.dec, jd, obs.lat, obs.lon));
+  if (!isFinite(x)) return null;
+  var m = moonRaDec(jd);
+  return {
+    apertureM: sn.ap, fwhmArcsec: sn.fwhm, pixScaleArcsec: sn.pix,
+    readNoise: sn.rn, darkRatePerPix: sn.dark, eff: sn.eff / 100,
+    kExt: sn.k, mag: obj.mag, airmass: x, skyDark: SNR_SKY_DARK,
+    moonSepDeg: angularSep(tt.raDeg / 15, tt.dec, m.raH, m.dec),
+    moonIllum: moonPhase(jd).illum,
+    moonAltDeg: altitude(m.raH, m.dec, jd, obs.lat, obs.lon),
+    targetSnr: sn.target,
+  };
+}
+
+/**
+ * Estimate the S/N of a single exposure for one target at one instant.
+ *
+ * With a positive fixed exposure, reports the S/N reached by that
+ * exposure; otherwise solves for the exposure time that reaches the
+ * target S/N.
+ *
+ * @param {Object} obj - A state target.
+ * @param {number} ms - Epoch milliseconds (UTC).
+ * @returns {?{tSec: number, snr: number}} The exposure time (s) and the
+ *     S/N it reaches (the target S/N when solved), or null when
+ *     snrParamsFor returns null.
+ */
+function snrFor(obj, ms) {
+  var p = snrParamsFor(obj, ms);
+  if (!p) return null;
+  var sn = state.options.snr;
+  var area = snrArea(p.apertureM);
+  var skyMag = snrSkyMag(
+    p.skyDark, snrMoonDarkening(p.moonSepDeg, p.moonIllum, p.moonAltDeg));
+  var src = snrSourceRate(area, p.mag, p.airmass, p.kExt, p.eff);
+  var sky = snrSkyRate(area, skyMag, p.airmass, p.kExt, p.eff, p.pixScaleArcsec);
+  var nPix = snrPsfPixels(p.fwhmArcsec, p.pixScaleArcsec);
+  if (sn.fixed > 0) {
+    return { tSec: sn.fixed,
+             snr: snrValue(src, sky, nPix, p.darkRatePerPix, p.readNoise, sn.fixed) };
   }
+  return { tSec: snrSolveTime(src, sky, nPix, p.darkRatePerPix, p.readNoise, p.targetSnr),
+           snr: p.targetSnr };
+}
+
+/**
+ * Format an exposure time for the summary panel.
+ *
+ * @param {number} tSec - Exposure time in seconds.
+ * @returns {string} Seconds below 60, minutes below 3600, else hours,
+ *     each to one decimal ("12.3 s" / "45.6 min" / "1.2 h").
+ */
+function snrTimeStr(tSec) {
+  if (!isFinite(tSec)) return "—";
+  if (tSec < 60) return tSec.toFixed(1) + " s";
+  if (tSec < 3600) return (tSec / 60).toFixed(1) + " min";
+  return (tSec / 3600).toFixed(1) + " h";
+}
+
+/**
+ * Compute the observing-window data for the summary panel and CSV export.
+ *
+ * Samples each target's altitude on an at-most-800-point grid over the
+ * full range, thresholds it at the chosen max airmass, and groups the
+ * resulting runs by local day.
+ *
+ * @returns {?Object} null when the time range is unparseable; otherwise
+ *     {tz (the resolved time zone), threshold (the max airmass), days
+ *     ([[startMs, endMs, 'YYYY-MM-DD']]), targets ([{obj (the state
+ *     target), name, totalH
+ *     (hours at or below the threshold over the whole range), days
+ *     ([{everUp (the target was above the horizon that day), maxAlt
+ *     (degrees), runs ([[startMs, endMs)]], transits ([{ms, x (airmass,
+ *     Infinity below the horizon)}])}])]}), and anyH (the union hours
+ *     across all targets)}.
+ */
+function summaryData() {
   var obs = state.observatory;
   var tz = resolveTz(obs.timezone);
   var startMs = startUtcMs(), endMs = endUtcMs();
-  if (startMs == null || endMs == null) {
-    $("summary-panel").style.display = "none";
-    return;
-  }
+  if (startMs == null || endMs == null) return null;
   var thrAlt = altFromAirmass(state.options.threshold);
   var step = Math.max(60000, (endMs - startMs) / 800);
   var n = Math.ceil((endMs - startMs) / step) + 1;
@@ -1225,71 +2180,152 @@ function renderSummary() {
   while (dayStart < endMs) {
     var dayEnd = Math.min(nextLocalMidnight(tz, dayStart + 1), endMs);
     if (dayEnd - dayStart < 3600000) dayEnd = endMs; // degenerate tz data: ensure progress
-    days.push([dayStart, dayEnd]);
+    var p = tzParts(tz, dayStart + 1000);
+    days.push([dayStart, dayEnd, p.year + "-" + pad2(p.month) + "-" + pad2(p.day)]);
     dayStart = dayEnd;
   }
-  var html = "", anyTarget = false;
+  var targets = [], okArrays = [];
   state.objects.forEach(function (obj, oi) {
     var name = obj.name || "Target " + (oi + 1);
-    var raH, dec;
     try {
-      raH = parseRa(obj.ra);
-      dec = parseDec(obj.dec);
+      parseRa(obj.ra);
+      parseDec(obj.dec);
     } catch (e) { return; }
-    anyTarget = true;
     var altAt = [];
     for (var k = 0; k < n; k++) {
       var ms = startMs + k * step;
       if (ms > endMs) break;
       var jd = jdFromUtcMs(ms);
-      var tt = precessIcrsToTete(raH * 15, dec, jd);
+      var c = objCoords(obj, ms);
+      var tt = precessIcrsToTete(c.raDeg, c.dec, jd);
       altAt.push(altitude(tt.raDeg / 15, tt.dec, jd, obs.lat, obs.lon));
     }
     var ok = altAt.map(function (a) { return a >= thrAlt; });
+    okArrays.push(ok);
     var runs = trueRuns(ok, startMs, step);
-    html += '<div class="sum-target"><b>' + htmlEscape(name) + "</b>";
-    var shownOnDay = {};
+    var totalH = 0;
+    runs.forEach(function (run) { totalH += (run[1] - run[0]) / 3600000; });
+    var dayRuns = [];
+    days.forEach(function () { dayRuns.push([]); });
     runs.forEach(function (run) {
       var dayIdx = 0;
       for (var di = 0; di < days.length; di++) {
         if (run[0] >= days[di][0]) { dayIdx = di; break; }
         dayIdx = di;
       }
-      if (shownOnDay[dayIdx] === undefined) shownOnDay[dayIdx] = [];
-      shownOnDay[dayIdx].push(run);
+      dayRuns[dayIdx].push(run);
     });
+    var dayInfo = [];
     days.forEach(function (day, di) {
-      var p = tzParts(tz, day[0] + 1000);
-      var label = p.year + "-" + pad2(p.month) + "-" + pad2(p.day);
-      var dayRuns = shownOnDay[di] || [];
-      var dayEndIdx = Math.min(n - 1, Math.ceil((day[1] - startMs) / step));
       var everUp = false, maxAlt = -90;
+      var dayEndIdx = Math.min(n - 1, Math.ceil((day[1] - startMs) / step));
       for (var ki = Math.max(0, Math.floor((day[0] - startMs) / step));
            ki <= dayEndIdx; ki++) {
         if (altAt[ki] > 0) everUp = true;
         if (altAt[ki] > maxAlt) maxAlt = altAt[ki];
       }
+      var transits = [];
+      var midRa = objCoords(obj, 0.5 * (day[0] + day[1])).raDeg / 15;
+      transitTimes(midRa, day[0], day[1], obs.lon).forEach(function (tm) {
+        var jd = jdFromUtcMs(tm);
+        var tc = objCoords(obj, tm);
+        var tt = precessIcrsToTete(tc.raDeg, tc.dec, jd);
+        var altT = altitude(tt.raDeg / 15, tt.dec, jd, obs.lat, obs.lon);
+        transits.push({ ms: tm, x: airmass(altT) });
+      });
+      dayInfo.push({ everUp: everUp, maxAlt: maxAlt,
+                     runs: dayRuns[di], transits: transits });
+    });
+    targets.push({ obj: obj, name: name, totalH: totalH, days: dayInfo });
+  });
+  var anyOk = okArrays.length ? okArrays[0].slice() : [];
+  okArrays.forEach(function (arr) {
+    for (var ai = 0; ai < arr.length; ai++) { if (arr[ai]) anyOk[ai] = true; }
+  });
+  var anyH = 0;
+  if (okArrays.length) {
+    trueRuns(anyOk, startMs, step).forEach(function (run) {
+      anyH += (run[1] - run[0]) / 3600000;
+    });
+  }
+  var weather = null;
+  if (state.options.weather) {
+    var wHours = weatherHours();
+    weather = days.map(function (day) {
+      var sum = 0, count = 0;
+      if (wHours) {
+        for (var wi = 0; wi < wHours.length; wi++) {
+          var wh = wHours[wi];
+          if (wh.ms >= day[0] && wh.ms < day[1]) { sum += wh.cc; count++; }
+        }
+      }
+      return count > 0 ? { clear: 100 - sum / count } : null;
+    });
+  }
+  return { tz: tz, threshold: state.options.threshold, days: days,
+           targets: targets, anyH: anyH, weather: weather };
+}
+
+/**
+ * Render the observing-window summary panel from summaryData().
+ *
+ * Shows the cumulative totals header, then, per target and local day,
+ * the window list with durations, the single-exposure S/N note at each
+ * run midpoint (snrFor; "exp t" when solving for the time, "SNR v" for
+ * a fixed exposure), transit airmass, and below-horizon or no-window
+ * notes.
+ */
+function renderSummary() {
+  var box = $("summary");
+  box.innerHTML = "";
+  if (!state.options.windows) {
+    $("summary-panel").style.display = "none";
+    return;
+  }
+  var data = summaryData();
+  if (!data) {
+    $("summary-panel").style.display = "none";
+    return;
+  }
+  var html = "", anyTarget = data.targets.length > 0;
+  if (anyTarget) {
+    var head = [];
+    data.targets.forEach(function (t) { head.push(htmlEscape(t.name) + " " + t.totalH.toFixed(1) + " h"); });
+    head.push("any target " + data.anyH.toFixed(1) + " h");
+    html = '<div class="sum-total"><b>Cumulative X \u2264 ' +
+           data.threshold.toFixed(2) + ':</b>  ' + head.join(";  ") + "</div>";
+  }
+  data.targets.forEach(function (t) {
+    html += '<div class="sum-target"><b>' + htmlEscape(t.name) + "</b>";
+    t.days.forEach(function (d, di) {
       var parts = [];
-      if (!everUp) {
+      if (!d.everUp) {
         parts.push("below horizon");
-      } else if (dayRuns.length === 0) {
-        parts.push("no time with X \u2264 " + state.options.threshold.toFixed(2) +
-                   " (max alt " + maxAlt.toFixed(1) + "\u00b0)");
+      } else if (d.runs.length === 0) {
+        parts.push("no time with X \u2264 " + data.threshold.toFixed(2) +
+                   " (max alt " + d.maxAlt.toFixed(1) + "\u00b0)");
       } else {
-        dayRuns.forEach(function (run) {
-          parts.push(hmStr(tz, run[0]) + "\u2013" + hmStr(tz, run[1]) +
-                     " \u00b7 " + ((run[1] - run[0]) / 3600000).toFixed(1) + " h");
+        d.runs.forEach(function (run) {
+          var s = snrFor(t.obj, 0.5 * (run[0] + run[1]));
+          var sn = state.options.snr;
+          var note;
+          if (sn && sn.fixed > 0) {
+            note = s ? "SNR " + s.snr.toFixed(1) : "\u2014";
+          } else {
+            note = s ? "exp " + snrTimeStr(s.tSec) : "\u2014";
+          }
+          parts.push(hmStr(data.tz, run[0]) + "\u2013" + hmStr(data.tz, run[1]) +
+                     " \u00b7 " + ((run[1] - run[0]) / 3600000).toFixed(1) + " h" +
+                     " \u00b7 " + note);
         });
-        var trs = transitTimes(raH, day[0], day[1], obs.lon);
-        trs.forEach(function (tm) {
-          var jd = jdFromUtcMs(tm);
-          var tt = precessIcrsToTete(raH * 15, dec, jd);
-          var altT = altitude(tt.raDeg / 15, tt.dec, jd, obs.lat, obs.lon);
-          parts.push("transit " + hmStr(tz, tm) +
-                     " \u00b7 X " + (isFinite(airmass(altT)) ? airmass(altT).toFixed(2) : "\u2014"));
+        d.transits.forEach(function (tr) {
+          parts.push("transit " + hmStr(data.tz, tr.ms) +
+                     " \u00b7 X " + (isFinite(tr.x) ? tr.x.toFixed(2) : "\u2014"));
         });
       }
-      html += '<span class="sum-day">' + label + ":  " + parts.join(";  ") + "</span>";
+      if (data.weather && data.weather[di] && data.weather[di].clear != null)
+        parts.push(Math.round(data.weather[di].clear) + "% clear");
+      html += '<span class="sum-day">' + data.days[di][2] + ":  " + parts.join(";  ") + "</span>";
     });
     html += "</div>";
   });
@@ -1298,6 +2334,209 @@ function renderSummary() {
   $("summary-panel").style.display = "";
 }
 
+/**
+ * Twelve monthly observing summaries for one target, on a 1-hour grid.
+ *
+ * Samples the target's altitude once per hour (UTC) starting at local
+ * midnight on the first day of the month containing monthStartMs,
+ * through the next eleven months (a full year of samples). For each
+ * month it reports the maximum
+ * altitude, the minimum airmass while above the horizon, and the number
+ * of sample hours with airmass at or below the threshold.
+ *
+ * @param {function(number): {raDeg: number, dec: number}} coords -
+     J2000 coordinates of the target at each sample time (objCoords
+     for a state target; a constant for a static target).
+ * @param {string} tz - IANA time zone name.
+ * @param {number} lat - Observatory latitude in degrees.
+ * @param {number} lon - Observatory longitude in degrees.
+ * @param {number} monthStartMs - Epoch ms of local midnight on the
+ *     first day of the first month.
+ * @param {number} threshold - Max airmass X for a "usable" hour.
+ * @returns {Array} 12 entries, first the month of monthStartMs, each
+ *     {label ("Mon YYYY"), maxAlt (degrees; -Infinity when the target
+ *     never rises), minAir (airmass; Infinity when it never rises),
+ *     hours (float, count of sample hours with X <= threshold)}.
+ */
+function annualCalendarMonths(coords, tz, lat, lon, monthStartMs, threshold) {
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var p0 = tzParts(tz, monthStartMs);
+  var months = [], first = [], k, ms, p, b;
+  for (b = 0; b < 12; b++) {
+    months.push({ label: "", maxAlt: -Infinity, minAir: Infinity, hours: 0 });
+  }
+  for (k = 0; k < 8784; k++) {
+    ms = monthStartMs + k * 3600000;
+    p = tzParts(tz, ms);
+    b = (p.year * 12 + p.month) - (p0.year * 12 + p0.month);
+    if (b < 0 || b > 11) continue;
+    var jd = jdFromUtcMs(ms);
+    var c = coords(ms);
+    var tt = precessIcrsToTete(c.raDeg, c.dec, jd);
+    var hd = horizonCoords(tt.raDeg / 15, tt.dec, jd, lat, lon);
+    if (first[b] === undefined) {
+      first[b] = true;
+      months[b].label = MONTHS[p.month - 1] + " " + p.year;
+    }
+    if (hd.alt > months[b].maxAlt) months[b].maxAlt = hd.alt;
+    if (hd.alt <= 0) continue;
+    var x = airmass(hd.alt);
+    if (x < months[b].minAir) months[b].minAir = x;
+    if (x <= threshold) months[b].hours += 1;
+  }
+  return months;
+}
+
+var __calCache = { key: null, data: null };
+
+/**
+ * Compute the annual calendar data for the calendar panel, memoized.
+ *
+ * Covers the twelve months starting with the month that contains the
+ * range start (local time), sampling once per hour; the year-long
+ * sampling is cached and only re-run when the observatory, range start,
+ * threshold, or target list changes.
+ *
+ * @returns {?Object} null when the time range is unparseable; otherwise
+ *     {threshold (max airmass), targets ([{name, months (12 entries per
+ *     annualCalendarMonths)}])}.
+ */
+function calendarData() {
+  var startMs = startUtcMs();
+  if (startMs == null) return null;
+  var obs = state.observatory;
+  var tz = resolveTz(obs.timezone);
+  var key = JSON.stringify([
+    obs.lat, obs.lon, tz, state.options.threshold, state.time_range.start,
+    state.objects.map(function (obj) {
+      return [obj.ra, obj.dec, obj.ephemeris ? obj.ephemeris.length : null];
+    }),
+  ]);
+  if (__calCache.key === key) return __calCache.data;
+  var p0 = tzParts(tz, startMs);
+  var monthStart = wallToUtc(tz, p0.year, p0.month, 1, 0, 0, 0);
+  var targets = [];
+  state.objects.forEach(function (obj, oi) {
+    try {
+      parseRa(obj.ra);
+      parseDec(obj.dec);
+    } catch (e) { return; }
+    targets.push({
+      name: obj.name || "Target " + (oi + 1),
+      months: annualCalendarMonths(function (ms) { return objCoords(obj, ms); },
+                                   tz, obs.lat, obs.lon,
+                                   monthStart, state.options.threshold),
+    });
+  });
+  var data = { threshold: state.options.threshold, targets: targets };
+  __calCache.key = key;
+  __calCache.data = data;
+  return data;
+}
+
+/**
+ * Render the annual calendar panel: a 12-month table per target.
+ */
+function renderCalendar() {
+  var box = $("calendar");
+  if (!state.options.calendar) {
+    $("calendar-panel").style.display = "none";
+    return;
+  }
+  var data = calendarData();
+  if (!data) {
+    box.innerHTML = "";
+    $("calendar-panel").style.display = "none";
+    return;
+  }
+  var html = "";
+  if (data.targets.length === 0) {
+    html = '<div class="cal-empty">Add a target to see its annual coverage.</div>';
+  }
+  data.targets.forEach(function (t) {
+    html += '<div class="cal-target"><b>' + htmlEscape(t.name) + "</b>";
+    html += '<table class="cal-table"><tr><th>Month</th><th>Max alt</th>' +
+            "<th>Min X</th><th>Usable h</th></tr>";
+    t.months.forEach(function (m) {
+      html += "<tr><td>" + m.label + "</td><td>" +
+        (isFinite(m.maxAlt) ? m.maxAlt.toFixed(1) + "\u00b0" : "\u2014") +
+        "</td><td>" +
+        (isFinite(m.minAir) ? m.minAir.toFixed(2) : "\u2014") +
+        "</td><td>" + m.hours.toFixed(1) + "</td></tr>";
+    });
+    html += "</table></div>";
+  });
+  box.innerHTML = html;
+  $("calendar-panel").style.display = "";
+}
+
+/**
+ * Build the observing-window CSV for download.
+ *
+ * One row per window: date, target, start, end (local HH:MM),
+ * duration_h, transit, transit_airmass. The transit columns are filled
+ * only on the first row of each target-day, from that day's first
+ * transit.
+ *
+ * @returns {?string} CSV text, or null when the time range is unparseable.
+ */
+function windowsCsv() {
+  var data = summaryData();
+  if (!data) return null;
+  var lines = ["date,target,start,end,duration_h,transit,transit_airmass"];
+  data.targets.forEach(function (t) {
+    t.days.forEach(function (d, di) {
+      for (var i = 0; i < d.runs.length; i++) {
+        var run = d.runs[i];
+        var transit = "", tx = "";
+        if (i === 0 && d.transits.length > 0) {
+          transit = hmStr(data.tz, d.transits[0].ms);
+          tx = isFinite(d.transits[0].x) ? d.transits[0].x.toFixed(2) : "";
+        }
+        lines.push([data.days[di][2], csvEsc(t.name), hmStr(data.tz, run[0]),
+                    hmStr(data.tz, run[1]),
+                    ((run[1] - run[0]) / 3600000).toFixed(2), transit, tx].join(","));
+      }
+    });
+  });
+  return lines.join("\n");
+}
+
+/**
+ * Quote a value for CSV.
+ *
+ * @param {*} s - Value to format.
+ * @returns {string} The value as text, quoted with doubled inner
+ *     quotes when it contains a comma, quote, or newline.
+ */
+function csvEsc(s) {
+  s = String(s);
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+/**
+ * Render the chart: shading, window bands, target curves, moon, axes, and legend.
+ *
+ * Also writes the observing-window summary.
+ */
+/**
+ * Render the chart for the current state.
+ *
+ * Draws the twilight shading, the optional weather and twilight-line
+ * overlays, the grid and axis labels of the selected curve
+ * (state.options.curve: "airmass", "altitude", or "azimuth"), one curve
+ * per target (interpolated from objCoords for moving targets), an
+ * optional dashed Moon curve, and, in airmass mode only, the threshold
+ * line, the X = 2 reference, and the per-target usable-window bands with
+ * transit ticks.
+ *
+ * @returns {undefined} Nothing returned.
+ *
+ * Outputs: the canvas contents, lastPlot (plot rectangle), lastCurve
+ *     (curve mode used), the status bar (empty on success), and the
+ *     summary and calendar panels.
+ */
 function draw() {
   var size = sizeCanvas();
   var w = size.w, h = size.h;
@@ -1343,13 +2582,17 @@ function draw() {
     return;
   }
 
-  var M = { l: 56, r: 52, t: 52, b: 44 };
+  var M = { l: 56, r: 52, t: 52, b: 58 };
   var plot = { x: M.l, y: M.t, w: w - M.l - M.r, h: h - M.t - M.b };
   lastPlot = plot;
   var vr = viewRange();
   var v0 = vr.t0, v1 = vr.t1;
+  var curve = state.options.curve;
+  var yMax = curve === "azimuth" ? 360 : 90;
+  lastCurve = curve;
   function X(ms) { return plot.x + ((ms - v0) / (v1 - v0)) * plot.w; }
-  function Y(alt) { return plot.y + (1 - alt / 90) * plot.h; }
+  /** Map a curve value (altitude for the airmass and altitude curves, azimuth for the azimuth curve) to pixel y. */
+  function Y(v) { return plot.y + (1 - v / yMax) * plot.h; }
 
   // axis background + twilight shading
   ctx.fillStyle = THEME.axes_bg;
@@ -1359,6 +2602,38 @@ function draw() {
     var iv = shading[si];
     ctx.fillStyle = SHADE[iv[2]];
     ctx.fillRect(X(iv[0]), plot.y, X(iv[1]) - X(iv[0]), plot.h);
+  }
+
+  // cloud-cover band from the open-meteo forecast (behind grid and curves)
+  if (state.options.weather) {
+    weatherRefresh();
+    var wx = weatherHours();
+    if (wx) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(plot.x, plot.y, plot.w, plot.h);
+      ctx.clip();
+      var wpts = [];
+      for (var wpi = 0; wpi < wx.length; wpi++) {
+        if (wx[wpi].ms >= v0 - 3600000 && wx[wpi].ms <= v1 + 3600000)
+          wpts.push(wx[wpi]);
+      }
+      if (wpts.length > 1) {
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = "rgb(185, 195, 215)";
+        ctx.beginPath();
+        ctx.moveTo(X(wpts[0].ms), plot.y + plot.h);
+        for (var wqi = 0; wqi < wpts.length; wqi++) {
+          var wcc = Math.max(0, Math.min(100, wpts[wqi].cc));
+          ctx.lineTo(X(wpts[wqi].ms),
+                     plot.y + plot.h - (wcc / 100) * plot.h * 0.3);
+        }
+        ctx.lineTo(X(wpts[wpts.length - 1].ms), plot.y + plot.h);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
   }
 
   // twilight marker lines: thin verticals at the sun's -6 / -12 deg crossings
@@ -1382,9 +2657,34 @@ function draw() {
   // grid
   ctx.strokeStyle = "rgba(69, 71, 90, 0.6)";
   ctx.lineWidth = 1;
+  var altTicks = [0, 15, 30, 45, 60, 75, 90];
   var airTicks = [1, 1.5, 2, 4, 8, 20];
-  for (var gi = 0; gi < airTicks.length; gi++) {
-    var gy = Y(altFromAirmass(airTicks[gi]));
+  var azTicks = [0, 45, 90, 135, 180, 225, 270, 315, 360];
+  var gridVals, leftVals, leftF, leftFmt, rightVals = null, rightF = null, rightFmt = null;
+  if (curve === "azimuth") {
+    gridVals = azTicks;
+    leftVals = azTicks;
+    leftF = function (v) { return Y(v); };
+    leftFmt = function (v) { return v + "\u00b0"; };
+  } else if (curve === "altitude") {
+    gridVals = altTicks;
+    leftVals = altTicks;
+    leftF = function (v) { return Y(v); };
+    leftFmt = function (v) { return v + "\u00b0"; };
+    rightVals = airTicks;
+    rightF = function (v) { return Y(altFromAirmass(v)); };
+    rightFmt = function (v) { return String(v); };
+  } else {
+    gridVals = airTicks;
+    leftVals = airTicks;
+    leftF = function (v) { return Y(altFromAirmass(v)); };
+    leftFmt = function (v) { return String(v); };
+    rightVals = altTicks;
+    rightF = function (v) { return Y(v); };
+    rightFmt = function (v) { return v + "\u00b0"; };
+  }
+  for (var gi = 0; gi < gridVals.length; gi++) {
+    var gy = leftF(gridVals[gi]);
     ctx.beginPath(); ctx.moveTo(plot.x, gy); ctx.lineTo(plot.x + plot.w, gy); ctx.stroke();
   }
   for (var gi2 = 0; gi2 < ticks.length; gi2++) {
@@ -1392,7 +2692,8 @@ function draw() {
     ctx.beginPath(); ctx.moveTo(gx, plot.y); ctx.lineTo(gx, plot.y + plot.h); ctx.stroke();
   }
 
-  // X = 2 reference line
+  // X = 2 reference line (airmass curve only)
+  if (curve === "airmass") {
   var y2 = Y(altFromAirmass(2));
   ctx.save();
   ctx.setLineDash([3, 3]);
@@ -1403,6 +2704,7 @@ function draw() {
   ctx.font = "11px " + FONT;
   ctx.textAlign = "right";
   ctx.fillText("X = 2", plot.x + plot.w - 4, y2 + 13);
+  }
 
   // parse all targets up front (shared by window bands, curves, and summary)
   var errors = [], below = [], legend = [];
@@ -1411,15 +2713,15 @@ function draw() {
     var name = obj.name || "Target " + (oi + 1);
     var color = obj.color || PALETTE[0];
     try {
-      targets.push({ name: name, color: color,
-                     raH: parseRa(obj.ra), dec: parseDec(obj.dec) });
+      parseRa(obj.ra); parseDec(obj.dec);  // validate
+      targets.push({ name: name, color: color, obj: obj });
     } catch (e) {
       errors.push(name + ": " + e.message);
     }
   });
 
   // airmass threshold line + per-target usable-window bands (behind curves)
-  if (state.options.windows) {
+  if (state.options.windows && curve === "airmass") {
     var thrAlt = altFromAirmass(state.options.threshold);
     var yt = Y(thrAlt);
     ctx.save();
@@ -1443,7 +2745,8 @@ function draw() {
         var ms = v0 + k * bstep;
         if (ms > v1) break;
         var jd = jdFromUtcMs(ms);
-        var tt = precessIcrsToTete(tg.raH * 15, tg.dec, jd);
+        var c = objCoords(tg.obj, ms);
+        var tt = precessIcrsToTete(c.raDeg, c.dec, jd);
         ok.push(altitude(tt.raDeg / 15, tt.dec, jd, obs.lat, obs.lon) >= thrAlt);
       }
       var runs = trueRuns(ok, v0, bstep);
@@ -1457,7 +2760,7 @@ function draw() {
     ctx.restore();
     // transit ticks on the time axis, colored per target
     targets.forEach(function (tg) {
-      var trs = transitTimes(tg.raH, v0, v1, obs.lon);
+      var trs = transitTimes(objCoords(tg.obj, 0.5 * (v0 + v1)).raDeg / 15, v0, v1, obs.lon);
       ctx.fillStyle = tg.color;
       for (var tti = 0; tti < trs.length; tti++) {
         ctx.fillRect(X(trs[tti]) - 1.5, plot.y + plot.h - 8, 3, 8);
@@ -1469,43 +2772,57 @@ function draw() {
   var step = Math.min(5 * 60 * 1000, Math.max(1000, (v1 - v0) / 400));
   var n = Math.ceil((v1 - v0) / step) + 1;
   targets.forEach(function (tg) {
-    var name = tg.name, color = tg.color, raH = tg.raH, dec = tg.dec;
+    var name = tg.name, color = tg.color, tobj = tg.obj;
     var pts = [];
     for (var k = 0; k < n; k++) {
       var ms = v0 + k * step;
       if (ms > v1) break;
       var jd = jdFromUtcMs(ms);
-      var tt = precessIcrsToTete(raH * 15, dec, jd);
-      pts.push([ms, airmass(altitude(tt.raDeg / 15, tt.dec, jd, obs.lat, obs.lon))]);
+      var c = objCoords(tobj, ms);
+      var tt = precessIcrsToTete(c.raDeg, c.dec, jd);
+      var hd = horizonCoords(tt.raDeg / 15, tt.dec, jd, obs.lat, obs.lon);
+      pts.push([ms, hd.alt, hd.az, airmass(hd.alt)]);
     }
-    var finite = pts.filter(function (p) { return isFinite(p[1]); });
+    var vi = curve === "azimuth" ? 2 : (curve === "airmass" ? 3 : 1);
+    var finite = pts.filter(function (p) { return isFinite(p[vi]); });
     if (finite.length === 0) return;
     var cstep = Math.max(15 * 60 * 1000, (endMs - startMs) / 400);
     var rises = false;
     for (var ck = 0; ck <= Math.ceil((endMs - startMs) / cstep); ck++) {
       var cjd = jdFromUtcMs(startMs + ck * cstep);
-      var ctt = precessIcrsToTete(raH * 15, dec, cjd);
+      var cc = objCoords(tobj, startMs + ck * cstep);
+      var ctt = precessIcrsToTete(cc.raDeg, cc.dec, cjd);
       if (altitude(ctt.raDeg / 15, ctt.dec, cjd, obs.lat, obs.lon) > 0) { rises = true; break; }
     }
     if (!rises) below.push(name);
-    var minP = finite[0];
+    var labP = finite[0];
     for (var fi = 1; fi < finite.length; fi++) {
-      if (finite[fi][1] < minP[1]) minP = finite[fi];
+      if (curve === "altitude") { if (finite[fi][vi] > labP[vi]) labP = finite[fi]; }
+      else if (finite[fi][vi] < labP[vi]) labP = finite[fi];
     }
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.6;
     ctx.beginPath();
-    var open = false;
+    var open = false, prevVal = null;
     for (var pi = 0; pi < pts.length; pi++) {
-      if (!isFinite(pts[pi][1])) { open = false; continue; }
-      var px = X(pts[pi][0]), py = Y(altFromAirmass(pts[pi][1]));
+      var val = pts[pi][vi];
+      if (!isFinite(val)) { open = false; prevVal = null; continue; }
+      if (open && curve === "azimuth" && prevVal !== null &&
+          Math.abs(val - prevVal) > 180) open = false;
+      var px = X(pts[pi][0]), py = curve === "airmass" ? Y(altFromAirmass(val)) : Y(val);
       if (!open) { ctx.moveTo(px, py); open = true; } else ctx.lineTo(px, py);
+      prevVal = val;
     }
     ctx.stroke();
-    ctx.fillStyle = color;
-    ctx.font = "11px " + FONT;
-    ctx.textAlign = "left";
-    ctx.fillText("min " + minP[1].toFixed(2), X(minP[0]) + 5, Y(altFromAirmass(minP[1])) + 14);
+    if (curve !== "azimuth") {
+      ctx.fillStyle = color;
+      ctx.font = "11px " + FONT;
+      ctx.textAlign = "left";
+      if (curve === "airmass")
+        ctx.fillText("min " + labP[vi].toFixed(2), X(labP[0]) + 5, Y(altFromAirmass(labP[vi])) + 14);
+      else
+        ctx.fillText("max " + labP[vi].toFixed(1) + "\u00b0", X(labP[0]) + 5, Y(labP[vi]) + 14);
+    }
     legend.push({ name: name, color: color });
   });
 
@@ -1517,16 +2834,21 @@ function draw() {
     ctx.lineWidth = 1.4;
     ctx.beginPath();
     var moonOpen = false;
+    var mprev = null;
     for (var mk = 0; mk < n; mk++) {
       var ms = v0 + mk * step;
       if (ms > v1) break;
       var jd = jdFromUtcMs(ms);
       var mr = moonRaDec(jd);
-      var mAlt = altitude(mr.raH, mr.dec, jd, obs.lat, obs.lon);
-      var mX = airmass(mAlt);
-      if (!isFinite(mX)) { moonOpen = false; continue; }
-      var mpx = X(ms), mpy = Y(altFromAirmass(mX));
+      var mhd = horizonCoords(mr.raH, mr.dec, jd, obs.lat, obs.lon);
+      var mval = curve === "azimuth" ? mhd.az
+                 : (curve === "airmass" ? airmass(mhd.alt) : mhd.alt);
+      if (!isFinite(mval)) { moonOpen = false; mprev = null; continue; }
+      if (moonOpen && curve === "azimuth" && mprev !== null &&
+          Math.abs(mval - mprev) > 180) moonOpen = false;
+      var mpx = X(ms), mpy = curve === "airmass" ? Y(altFromAirmass(mval)) : Y(mval);
       if (!moonOpen) { ctx.moveTo(mpx, mpy); moonOpen = true; } else ctx.lineTo(mpx, mpy);
+      mprev = mval;
     }
     ctx.stroke();
     ctx.restore();
@@ -1543,17 +2865,18 @@ function draw() {
   ctx.strokeStyle = THEME.fg;
   ctx.fillStyle = THEME.fg;
   ctx.textAlign = "right";
-  for (var li = 0; li < airTicks.length; li++) {
-    var ly = Y(altFromAirmass(airTicks[li]));
-    ctx.fillText(String(airTicks[li]), plot.x - 6, ly + 3.5);
+  for (var li = 0; li < leftVals.length; li++) {
+    var ly = leftF(leftVals[li]);
+    ctx.fillText(leftFmt(leftVals[li]), plot.x - 6, ly + 3.5);
     ctx.beginPath(); ctx.moveTo(plot.x - 4, ly); ctx.lineTo(plot.x, ly); ctx.stroke();
   }
-  ctx.textAlign = "left";
-  var altTicks = [0, 15, 30, 45, 60, 75, 90];
-  for (var ai = 0; ai < altTicks.length; ai++) {
-    var ay = Y(altTicks[ai]);
-    ctx.fillText(altTicks[ai] + "\u00b0", plot.x + plot.w + 6, ay + 3.5);
-    ctx.beginPath(); ctx.moveTo(plot.x + plot.w, ay); ctx.lineTo(plot.x + plot.w + 4, ay); ctx.stroke();
+  if (rightVals) {
+    ctx.textAlign = "left";
+    for (var ai = 0; ai < rightVals.length; ai++) {
+      var ay = rightF(rightVals[ai]);
+      ctx.fillText(rightFmt(rightVals[ai]), plot.x + plot.w + 6, ay + 3.5);
+      ctx.beginPath(); ctx.moveTo(plot.x + plot.w, ay); ctx.lineTo(plot.x + plot.w + 4, ay); ctx.stroke();
+    }
   }
   var fmt = fmtLabel(tz);
   var lastRight = -Infinity;
@@ -1569,19 +2892,63 @@ function draw() {
     }
   }
 
+  // Dawn/dusk ticks: S/C/N/A letters with rising/setting arrows below the axis
+  if (state.options.dusk) {
+    var duskSpecs = [
+      { alt: 0, letter: "S", color: THEME.fg },
+      { alt: -6, letter: "C", color: "#ffd966" },
+      { alt: -12, letter: "N", color: "#89b4d6" },
+      { alt: -18, letter: "A", color: "#55779f" }
+    ];
+    var duskEvs = sunEvents(v0, v1, obs.lat, obs.lon);
+    var lastLx = -Infinity;
+    ctx.font = "10px " + FONT;
+    for (var de = 0; de < duskEvs.length; de++) {
+      var ev = duskEvs[de];
+      var spec = null;
+      for (var ds = 0; ds < duskSpecs.length; ds++) {
+        if (duskSpecs[ds].alt === ev.alt) spec = duskSpecs[ds];
+      }
+      var dx = X(ev.ms);
+      if (dx - lastLx < 13) continue; // keep the letters readable when events crowd
+      lastLx = dx;
+      ctx.fillStyle = spec.color;
+      ctx.textAlign = "center";
+      ctx.fillText(spec.letter, dx, plot.y + plot.h + 31);
+      var axx = dx + 6, ayy = plot.y + plot.h + 24;
+      ctx.strokeStyle = spec.color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(axx, ev.dir > 0 ? ayy + 7 : ayy);
+      ctx.lineTo(axx, ev.dir > 0 ? ayy : ayy + 7);
+      ctx.stroke();
+      ctx.beginPath();
+      if (ev.dir > 0) {
+        ctx.moveTo(axx - 2.5, ayy + 3); ctx.lineTo(axx, ayy); ctx.lineTo(axx + 2.5, ayy + 3);
+      } else {
+        ctx.moveTo(axx - 2.5, ayy + 4); ctx.lineTo(axx, ayy + 7); ctx.lineTo(axx + 2.5, ayy + 4);
+      }
+      ctx.stroke();
+    }
+  }
+
   // axis labels
   ctx.textAlign = "center";
   ctx.fillText("Local time (" + (obs.timezone || "UTC") + ")", plot.x + plot.w / 2, h - 8);
+  var leftAxis = curve === "azimuth" ? "Azimuth" : curve === "altitude" ? "Altitude" : "Airmass X";
+  var rightAxis = curve === "altitude" ? "Airmass X" : "Altitude";
   ctx.save();
   ctx.translate(12, plot.y + plot.h / 2);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillText("Airmass X", 0, 0);
+  ctx.fillText(leftAxis, 0, 0);
   ctx.restore();
-  ctx.save();
-  ctx.translate(w - 8, plot.y + plot.h / 2);
-  ctx.rotate(Math.PI / 2);
-  ctx.fillText("Altitude", 0, 0);
-  ctx.restore();
+  if (curve !== "azimuth") {
+    ctx.save();
+    ctx.translate(w - 8, plot.y + plot.h / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.fillText(rightAxis, 0, 0);
+    ctx.restore();
+  }
 
   // legend (upper left)
   if (legend.length > 0) {
@@ -1623,14 +2990,22 @@ function draw() {
   }
 
   renderSummary();
+  renderCalendar();
 }
 
 // --------------------------------------------------------- view interaction
+// Minimum zoomed span (ms) and pixel width of the resizable plot edges.
 var MIN_WINDOW_MS = 10 * 60 * 1000;
 var EDGE_PX = 8;
 var tooltipEl = $("tooltip");
 var xhairEl = $("xhair");
 
+/**
+ * Time span currently shown, clamped to the range.
+ *
+ * @returns {{t0: ?number, t1: ?number}} Span in epoch ms, or {null, null}
+ *     when the range is invalid.
+ */
 function viewRange() {
   var s = startUtcMs(), e = endUtcMs();
   if (s == null || e == null || !(e > s)) return { t0: null, t1: null };
@@ -1646,8 +3021,19 @@ function viewRange() {
   return { t0: t0, t1: t1 };
 }
 
+/**
+ * Reset the zoomed view to the full range.
+ */
 function invalidateView() { view = null; hideTooltip(); }
 
+/**
+ * Clamp a proposed time span into the range at the minimum width.
+ *
+ * @param {number} t0 - Proposed start, epoch ms.
+ * @param {number} t1 - Proposed end, epoch ms.
+ * @returns {?{t0: number, t1: number}} The clamped span, or null when it
+ *     already is the full range.
+ */
 function clampWindow(t0, t1) {
   var s = startUtcMs(), e = endUtcMs();
   if (t0 < s) { t1 += s - t0; t0 = s; }
@@ -1664,16 +3050,34 @@ function clampWindow(t0, t1) {
   return { t0: t0, t1: t1 };
 }
 
+/**
+ * Hide the hover tooltip and crosshair.
+ */
 function hideTooltip() {
   tooltipEl.style.display = "none";
   xhairEl.style.display = "none";
 }
 
+/**
+ * Pointer position relative to the canvas.
+ *
+ * @param {MouseEvent|Touch} e - Mouse or touch event.
+ * @returns {{x: number, y: number}}
+ */
 function canvasPos(e) {
   var rect = canvas.getBoundingClientRect();
   return { x: e.clientX - rect.left, y: e.clientY - rect.top };
 }
 
+/**
+ * Fill and position the hover tooltip for a pointer event.
+ *
+ * Lists the local time, then per target the altitude, azimuth, airmass,
+ * parallactic angle, and (with the moon curve on) the Moon separation.
+ *
+ * @param {MouseEvent|{clientX: number, clientY: number}} e - Pointer
+ *     event; client coordinates position the hover.
+ */
 function updateTooltip(e) {
   var plot = lastPlot;
   var vr = viewRange();
@@ -1688,18 +3092,19 @@ function updateTooltip(e) {
   var lines = [localStamp(ms) + " local"];
   state.objects.forEach(function (obj, oi) {
     var name = obj.name || "Target " + (oi + 1);
-    var raH, dec;
+    var c;
     try {
-      raH = parseRa(obj.ra);
-      dec = parseDec(obj.dec);
+      c = objCoords(obj, ms);
     } catch (err) {
       lines.push(name + ":  (unparseable coordinates)");
       return;
     }
-    var tt = precessIcrsToTete(raH * 15, dec, jd);
+    var tt = precessIcrsToTete(c.raDeg, c.dec, jd);
     var hd = horizonCoords(tt.raDeg / 15, tt.dec, jd, obs.lat, obs.lon);
+    var info = targetInfoText(obj);
     if (hd.alt <= 0) {
-      lines.push(name + ":  alt " + hd.alt.toFixed(1) + "\u00b0  (below horizon)");
+      lines.push(name + ":  alt " + hd.alt.toFixed(1) + "\u00b0  (below horizon)" +
+                 (info ? "  " + info : ""));
       return;
     }
     var q = parallacticAngle(tt.raDeg / 15, tt.dec, jd, obs.lat, obs.lon);
@@ -1709,6 +3114,7 @@ function updateTooltip(e) {
     if (moon) {
       line += "  moon " + angularSep(tt.raDeg / 15, tt.dec, moon.raH, moon.dec).toFixed(1) + "\u00b0";
     }
+    line += info ? "  " + info : "";
     lines.push(line);
   });
   if (moon) {
@@ -1733,6 +3139,7 @@ function updateTooltip(e) {
   xhairEl.style.height = plot.h + "px";
 }
 
+// Wheel: ctrl/meta zooms about the cursor; a plain wheel pans.
 canvas.addEventListener("wheel", function (e) {
   var vr = viewRange();
   if (vr.t0 == null || !lastPlot) return;
@@ -1750,6 +3157,7 @@ canvas.addEventListener("wheel", function (e) {
   scheduleRedraw();
 }, { passive: false });
 
+// Mouse down: start an edge-resize or pan drag.
 canvas.addEventListener("mousedown", function (e) {
   if (e.button !== 0) return;
   var vr = viewRange();
@@ -1767,6 +3175,7 @@ canvas.addEventListener("mousedown", function (e) {
   e.preventDefault();
 });
 
+// Mouse move: continue the in-progress drag.
 window.addEventListener("mousemove", function (e) {
   if (!dragState || !lastPlot) return;
   var scale = (dragState.t1 - dragState.t0) / lastPlot.w;
@@ -1783,10 +3192,12 @@ window.addEventListener("mousemove", function (e) {
   scheduleRedraw();
 });
 
+// Mouse up: end the drag.
 window.addEventListener("mouseup", function () {
   if (dragState) { dragState = null; canvas.style.cursor = ""; }
 });
 
+// Mouse move (no drag): set the cursor and update the tooltip.
 canvas.addEventListener("mousemove", function (e) {
   if (dragState) return;
   var pos = canvasPos(e);
@@ -1805,16 +3216,24 @@ canvas.addEventListener("mousemove", function (e) {
 
 canvas.addEventListener("mouseleave", hideTooltip);
 
+// Double click: reset zoom to the full range.
 canvas.addEventListener("dblclick", function () {
   if (view != null) { view = null; hideTooltip(); scheduleRedraw(); }
 });
 
 var touchState = null;
+/**
+ * Compute the distance between the two touches of a pinch gesture.
+ *
+ * @param {TouchEvent} e - The two-finger touch event.
+ * @returns {number} Distance in CSS px.
+ */
 function touchDist(e) {
   var dx = e.touches[0].clientX - e.touches[1].clientX;
   var dy = e.touches[0].clientY - e.touches[1].clientY;
   return Math.sqrt(dx * dx + dy * dy);
 }
+// Touch start: begin a one-finger pan or a two-finger pinch.
 canvas.addEventListener("touchstart", function (e) {
   var vr = viewRange();
   if (vr.t0 == null || !lastPlot || lastPlot.w < 40) return;
@@ -1836,6 +3255,7 @@ canvas.addEventListener("touchstart", function (e) {
   }
 }, { passive: false });
 
+// Touch move: pan or pinch-zoom the view.
 canvas.addEventListener("touchmove", function (e) {
   if (!touchState || !lastPlot) return;
   if (touchState.mode === "pan" && e.touches.length === 1) {
@@ -1854,6 +3274,7 @@ canvas.addEventListener("touchmove", function (e) {
   e.preventDefault();
 }, { passive: false });
 
+// Touch end: a tap shows the tooltip; pinch-to-one-finger continues as a pan.
 canvas.addEventListener("touchend", function (e) {
   if (touchState && touchState.mode === "pan" && !touchState.moved &&
       e.touches.length === 0) {
@@ -1869,6 +3290,7 @@ canvas.addEventListener("touchend", function (e) {
   e.preventDefault();
 }, { passive: false });
 
+// Keys: arrows pan, +/- zoom about the center, 0/r reset.
 window.addEventListener("keydown", function (e) {
   var tag = e.target && e.target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
@@ -1899,11 +3321,15 @@ window.addEventListener("keydown", function (e) {
 
 // ------------------------------------------------------------------ wiring
 var redrawTimer = null;
+/**
+ * Schedule a chart redraw 150 ms from now, replacing any pending one.
+ */
 function scheduleRedraw() {
   if (redrawTimer) clearTimeout(redrawTimer);
   redrawTimer = setTimeout(function () { redrawTimer = null; draw(); }, 150);
 }
 
+// Preset change: swap in a preset's observatory, or clear the preset key for Custom.
 $("preset").addEventListener("change", function () {
   var name = this.value;
   if (name !== "Custom") {
@@ -1931,6 +3357,7 @@ $("preset").addEventListener("change", function () {
 ["lat", "lon", "elev", "tz"].forEach(function (id) {
   $(id).addEventListener("input", onObsField);
 });
+// Start stamp: store as 'YYYY-MM-DD HH:MM'; invalidate the zoomed view.
 $("start").addEventListener("input", function () {
   if (this.value) state.time_range.start = this.value.replace("T", " ");
   invalidateView();
@@ -1964,6 +3391,40 @@ $("nautical-chk").addEventListener("change", function () {
   saveState();
   scheduleRedraw();
 });
+$("dusk-chk").addEventListener("change", function () {
+  state.options.dusk = this.checked;
+  saveState();
+  scheduleRedraw();
+});
+$("weather-chk").addEventListener("change", function () {
+  state.options.weather = this.checked;
+  saveState();
+  scheduleRedraw();
+});
+$("calendar-chk").addEventListener("change", function () {
+  state.options.calendar = this.checked;
+  saveState();
+  scheduleRedraw();
+});
+$("curve-sel").addEventListener("change", function () {
+  state.options.curve = this.value;
+  saveState();
+  scheduleRedraw();
+});
+// S/N estimate inputs: numeric, written straight into state.options.snr.
+["snr-ap", "snr-fwhm", "snr-pix", "snr-rn", "snr-dark", "snr-eff",
+ "snr-k", "snr-target", "snr-fixed"].forEach(function (id) {
+  var key = id.slice(4);
+  $(id).addEventListener("input", function () {
+    var v = parseFloat(this.value);
+    if (!isFinite(v) || v < 0) return;
+    if (key === "eff" && v > 100) v = 100;
+    state.options.snr[key] = v;
+    saveState();
+    scheduleRedraw();
+  });
+});
+// Threshold: enforce the 1.05 airmass minimum.
 $("threshold").addEventListener("input", function () {
   var v = parseFloat(this.value);
   if (isFinite(v) && v >= 1.05) {
@@ -1972,6 +3433,7 @@ $("threshold").addEventListener("input", function () {
     scheduleRedraw();
   }
 });
+// Add target: validate RA/Dec, append the object, clear the form.
 $("add-btn").addEventListener("click", function () {
   var name = $("new-name").value.trim();
   var ra = $("new-ra").value.trim();
@@ -1997,14 +3459,23 @@ $("add-btn").addEventListener("click", function () {
   afterTargetChange();
 });
 
-// Simbad lookup (browser only: needs fetch; the record parser lives in the
-// engine-tested core). Mirrors are tried in order, as in the desktop app.
+/**
+ * SIMBAD mirrors tried in order, as in the desktop app (see
+ * airmass_gui.lookup for the same list).
+ */
 var SIMBAD_ENDPOINTS = [
   "https://simbad.cfa.harvard.edu/simbad/sim-id",
   "https://simbad.idia.ac.za/simbad/sim-id",
   "https://simbad.u-strasbg.fr/simbad/sim-id",
 ];
 
+/**
+ * Fetch a SIMBAD mirror response as text, with a 30 s timeout.
+ *
+ * @param {string} url - Fully formed SIMBAD query URL.
+ * @returns {Promise<string>} Response body.
+ * @throws {Error} On timeout, network failure, or non-2xx status.
+ */
 function simbadFetchText(url) {
   var controller = new AbortController();
   var timer = setTimeout(function () { controller.abort(); }, 30000);
@@ -2019,6 +3490,146 @@ function simbadFetchText(url) {
     .finally(function () { clearTimeout(timer); });
 }
 
+/**
+ * Build an open-meteo hourly forecast request for an observatory.
+ *
+ * Requests cloud_cover and precipitation_probability hourly in the
+ * observatory's time zone over the union of the workspace window and
+ * the five days before today (for nowcast), clipped to open-meteo's
+ * coverage of roughly 16 days on either side of today.
+ *
+ * @param {Object} obs - Observatory with lat, lon, and timezone.
+ * @returns {?{url: string, start: string, end: string}} The query URL
+ *     plus the requested local date range as 'YYYY-MM-DD' strings, or
+ *     null when the clipped range is empty.
+ */
+function weatherRequest(obs) {
+  var tz = resolveTz(obs.timezone);
+  var DAY = 86400000;
+  var p = tzParts(tz, Date.now());
+  var today0 = wallToUtc(tz, p.year, p.month, p.day, 0, 0, 0);
+  var coverLo = today0 - 16 * DAY;
+  var coverHi = today0 + 16 * DAY;
+  var wsStart = startUtcMs(), wsEnd = endUtcMs();
+  if (wsStart == null) wsStart = today0;
+  if (wsEnd == null) wsEnd = today0;
+  var lo = Math.max(coverLo, Math.min(today0 - 5 * DAY, wsStart));
+  var hi = Math.min(coverHi, Math.max(today0 + 16 * DAY, wsEnd));
+  if (hi <= lo) return null;
+  var date = function (q) {
+    return q.year + "-" + pad2(q.month) + "-" + pad2(q.day);
+  };
+  var s = date(tzParts(tz, lo)), e = date(tzParts(tz, hi));
+  return {
+    url: "https://api.open-meteo.com/v1/forecast?latitude=" + obs.lat +
+         "&longitude=" + obs.lon +
+         "&hourly=cloud_cover,precipitation_probability" +
+         "&timezone=" + encodeURIComponent(tz) +
+         "&start_date=" + s + "&end_date=" + e,
+    start: s,
+    end: e
+  };
+}
+
+/**
+ * Fetch an open-meteo forecast response as JSON, with a 30 s timeout.
+ *
+ * @param {string} url - Fully formed open-meteo query URL.
+ * @returns {Promise<Object>} Parsed JSON body.
+ * @throws {Error} On timeout, network failure, non-2xx status, or a
+ *     body without a usable hourly block.
+ */
+function fetchWeather(url) {
+  var controller = new AbortController();
+  var timer = setTimeout(function () { controller.abort(); }, 30000);
+  return fetch(url, { signal: controller.signal })
+    .catch(function (error) {
+      throw new Error(error && error.name === "AbortError" ? "timed out" : error.message);
+    })
+    .then(function (response) {
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      return response.text();
+    })
+    .then(function (text) {
+      var body = JSON.parse(text);
+      if (!body || !body.hourly || !Array.isArray(body.hourly.time))
+        throw new Error("unexpected response shape");
+      return body;
+    })
+    .finally(function () { clearTimeout(timer); });
+}
+
+var __wxCache = { key: null, fetchedMs: 0, hours: null };
+var __wxFlight = null;
+
+/**
+ * Fetch (or reuse) hourly cloud cover and rain chance for the current observatory.
+ *
+ * The response is cached per observatory and request window and reused
+ * for one hour. Each hourly local time is converted to UTC epoch ms;
+ * the sorted hours are exposed through weatherHours(). When the request
+ * window does not overlap open-meteo's coverage, no request is made.
+ *
+ * @returns {?Promise<void>} The in-flight request, or null when the
+ *     cache is current. A failed request reports "Weather unavailable"
+ *     in the status bar; the chart still draws without the cloud band.
+ */
+function weatherRefresh() {
+  var obs = state.observatory;
+  var req = weatherRequest(obs);
+  if (!req) return null;
+  var key = obs.lat + "|" + obs.lon + "|" + resolveTz(obs.timezone) +
+            "|" + req.start + "|" + req.end;
+  var now = Date.now();
+  if (__wxCache.key === key && now - __wxCache.fetchedMs < 3600000) return null;
+  if (__wxFlight) return __wxFlight;
+  __wxFlight = fetchWeather(req.url)
+    .then(function (body) {
+      var tz = resolveTz(obs.timezone);
+      var times = body.hourly.time;
+      var hours = [];
+      for (var i = 0; i < times.length; i++) {
+        var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(times[i]));
+        if (!m) continue;
+        var ms = wallToUtc(tz, +m[1], +m[2], +m[3], +m[4], +m[5], 0);
+        var cc = body.hourly.cloud_cover ? body.hourly.cloud_cover[i] : null;
+        var pp = body.hourly.precipitation_probability
+                 ? body.hourly.precipitation_probability[i] : null;
+        if (cc == null || pp == null) continue;
+        hours.push({ ms: ms, cc: +cc, pp: +pp });
+      }
+      hours.sort(function (a, b) { return a.ms - b.ms; });
+      __wxCache = { key: key, fetchedMs: now, hours: hours };
+      scheduleRedraw();
+    })
+    .catch(function (error) {
+      setStatus("Weather unavailable: " + error.message);
+    })
+    .then(function () { __wxFlight = null; });
+  return __wxFlight;
+}
+
+/**
+ * Cached hourly weather for the chart, or null when nothing is cached.
+ *
+ * @returns {?Array<{ms: number, cc: number, pp: number}>} Hours sorted
+ *     by time, where ms is the UTC epoch ms of the local hour, cc is
+ *     cloud cover in percent, and pp is precipitation probability in
+ *     percent.
+ */
+function weatherHours() {
+  return __wxCache.hours;
+}
+
+/**
+ * Look up a target name in SIMBAD, trying each mirror in turn.
+ *
+ * @param {string} name - Object name or identifier.
+ * @returns {Promise<{name: string, raDeg: number, dec: number,
+ *     mag: ?number, spec: ?string, plx: ?number}>} Record per
+ *     simbadParseRecord.
+ * @throws {Error} When every mirror fails.
+ */
 async function simbadLookup(name) {
   var errors = [];
   for (var i = 0; i < SIMBAD_ENDPOINTS.length; i++) {
@@ -2038,7 +3649,91 @@ async function simbadLookup(name) {
   throw new Error("Simbad lookup failed for \u201c" + name + "\u201d: " + errors.join("; "));
 }
 
-// Non-negative hours or degrees -> "H:MM:SS.ss" / "D:MM:SS.ss" (2 fractional seconds).
+/**
+ * Format an epoch as a UTC 'YYYY-MM-DD HH:MM:SS' string.
+ *
+ * @param {number} ms - Epoch ms.
+ * @returns {string} e.g. '2026-02-02 05:00:00'.
+ */
+function utcStamp(ms) {
+  var d = new Date(ms);
+  var q = function (n) { return (n < 10 ? "0" : "") + n; };
+  return d.getUTCFullYear() + "-" + q(d.getUTCMonth() + 1) + "-" +
+         q(d.getUTCDate()) + " " + q(d.getUTCHours()) + ":" +
+         q(d.getUTCMinutes()) + ":" + q(d.getUTCSeconds());
+}
+
+/**
+ * Build a JPL Horizons API URL for geocentric apparent RA/Dec.
+ *
+ * Requests radec_j2000 (J2000-equatorial RA, Dec in degrees) sampled
+ * at about 1000 steps across [t0Ms, t1Ms] from the observatory site,
+ * using the geodetic-observer form '500@lat,lon,elev'.
+ *
+ * @param {string} name - Object name as Horizons will recognize it
+ *     (asteroid, comet, spacecraft, named star, ...).
+ * @param {Object} obs - Observatory with lat, lon, elevation_m.
+ * @param {number} t0Ms - Epoch ms, start of coverage.
+ * @param {number} t1Ms - Epoch ms, end of coverage.
+ * @returns {string} Fully formed query URL.
+ */
+function horizonsUrl(name, obs, t0Ms, t1Ms) {
+  var step = Math.max(3600, Math.round((t1Ms - t0Ms) / 1e6));
+  return "https://ssd-api.jpl.nasa.gov/horizons.api" +
+         "?format=5" +
+         "&CMT=1" +
+         "&OBJ_ID=" + encodeURIComponent("'" + name + "'") +
+         "&custom_fields=radec_j2000" +
+         "&observatory=500@" + obs.lat + "," + obs.lon + "," + (obs.elevation_m || 0) +
+         "&start_time=" + encodeURIComponent(utcStamp(t0Ms)) +
+         "&stop_time=" + encodeURIComponent(utcStamp(t1Ms)) +
+         "&STEP=" + step + "s";
+}
+
+/**
+ * Fetch a Horizons API response as text, with a 30 s timeout.
+ *
+ * @param {string} url - Fully formed horizons.api query URL.
+ * @returns {Promise<string>} Response body.
+ * @throws {Error} On timeout, network failure, or non-2xx status.
+ */
+function horizonsFetchText(url) {
+  var controller = new AbortController();
+  var timer = setTimeout(function () { controller.abort(); }, 30000);
+  return fetch(url, { signal: controller.signal })
+    .catch(function (error) {
+      throw new Error(error && error.name === "AbortError" ? "timed out" : error.message);
+    })
+    .then(function (response) {
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      return response.text();
+    })
+    .finally(function () { clearTimeout(timer); });
+}
+
+/**
+ * Fetch a moving target's ephemeris from JPL Horizons for the workspace range.
+ *
+ * @param {string} name - Object name as Horizons will recognize it.
+ * @returns {Promise<Array<Array<number>>>} Rows [epoch ms, raDeg,
+ *     decDeg] covering the workspace time range.
+ * @throws {Error} When the time range is unparseable, the request
+ *     fails, or the response carries no ephemeris rows.
+ */
+function horizonsLookup(name) {
+  var s = startUtcMs(), e = endUtcMs();
+  if (s == null || e == null) throw new Error("set a valid time range first");
+  var url = horizonsUrl(name, state.observatory, s, e);
+  return horizonsFetchText(url).then(horizonsParse);
+}
+
+/**
+ * Format non-negative hours or degrees as 'H:MM:SS.ss'.
+ *
+ * @param {number} value - Hours or degrees, >= 0.
+ * @param {number} fracDigits - Fractional digits for the seconds field.
+ * @returns {string} e.g. '18:36:56.30'.
+ */
 function sexagesimalString(value, fracDigits) {
   var top = Math.floor(value);
   var mid = Math.floor((value - top) * 60);
@@ -2048,6 +3743,7 @@ function sexagesimalString(value, fracDigits) {
   return top + ":" + String(mid).padStart(2, "0") + ":" + secText.padStart(5, "0");
 }
 
+// Simbad lookup: fill the form from the record, then add the target.
 $("simbad-btn").addEventListener("click", function () {
   var name = $("new-name").value.trim();
   if (!name) {
@@ -2060,13 +3756,22 @@ $("simbad-btn").addEventListener("click", function () {
       $("new-name").value = record.name;
       $("new-ra").value = sexagesimalString(wrap360(record.raDeg) / 15, 2);
       $("new-dec").value = (record.dec < 0 ? "-" : "+") + sexagesimalString(Math.abs(record.dec), 2);
+      var before = state.objects.length;
       $("add-btn").click();
+      var added = state.objects[before];
+      if (added) {
+        if (isFinite(record.mag)) added.mag = record.mag;
+        if (record.spec) added.spec = record.spec;
+        if (isFinite(record.plx)) added.plx = record.plx;
+        saveState();
+      }
       setStatus("Added \u201c" + record.name + "\u201d from Simbad");
     })
     .catch(function (error) {
       setStatus(error.message);
     });
 });
+// Copy a shareable link encoding the current state in the URL fragment.
 $("copylink-btn").addEventListener("click", function () {
   var url = window.location.href.split("#")[0] + encodeShareFragment(JSON.stringify(state));
   function done(ok) {
@@ -2088,6 +3793,7 @@ $("copylink-btn").addEventListener("click", function () {
   }
 });
 $("export-btn").addEventListener("click", exportWorkspace);
+// Save the current state under a name in browser storage.
 $("ws-save-btn").addEventListener("click", function () {
   var name = window.prompt("Save workspace as:");
   if (!name || !name.trim()) return;
@@ -2099,11 +3805,13 @@ $("ws-save-btn").addEventListener("click", function () {
   $("ws-select").value = name;
   setStatus("Saved \u201c" + name + "\u201d");
 });
+// Load the selected named workspace.
 $("ws-load-btn").addEventListener("click", function () {
   var name = $("ws-select").value;
   if (!name) { setStatus("No workspace selected"); return; }
   loadWorkspaceDoc(readWorkspaces()[name], "\u201c" + name + "\u201d");
 });
+// Delete the selected named workspace after confirmation.
 $("ws-delete-btn").addEventListener("click", function () {
   var name = $("ws-select").value;
   if (!name) { setStatus("No workspace selected"); return; }
@@ -2115,6 +3823,7 @@ $("ws-delete-btn").addEventListener("click", function () {
   setStatus("Deleted \u201c" + name + "\u201d");
 });
 $("import-btn").addEventListener("click", function () { $("import-file").click(); });
+// Import: parse the chosen JSON file and load it as the state.
 $("import-file").addEventListener("change", function () {
   var file = this.files && this.files[0];
   this.value = "";
@@ -2129,6 +3838,7 @@ $("import-file").addEventListener("change", function () {
   reader.onerror = function () { setStatus("Could not read \u201c" + file.name + "\u201d"); };
   reader.readAsText(file);
 });
+// PNG export: re-draw, then download the canvas as an image.
 $("png-btn").addEventListener("click", function () {
   hideTooltip();
   draw();
@@ -2142,6 +3852,25 @@ $("png-btn").addEventListener("click", function () {
   a.click();
   a.remove();
 });
+// Windows CSV: download the per-target observing windows as a CSV file.
+$("csv-btn").addEventListener("click", function () {
+  var csv = windowsCsv();
+  if (csv === null) {
+    setStatus("Fix the time range to export the windows.");
+    return;
+  }
+  var blob = new Blob([csv], { type: "text/csv" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "airmass-windows.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  setStatus("Windows CSV downloaded.");
+});
+// Reset: clear the saved state and return to the embedded workspace.
 $("reset-btn").addEventListener("click", function () {
   try { localStorage.removeItem(STATE_KEY); } catch (e) { /* ignore */ }
   state = normalizeState(deepCopy(INITIAL));
