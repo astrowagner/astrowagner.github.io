@@ -210,6 +210,9 @@ footer li { margin-bottom: 0.2rem; }
       <button id="days-2" title="Set the duration to 2 days">2</button>
       <button id="days-3" title="Set the duration to 3 days">3</button>
     </div>
+    <div class="field-row">
+      <label class="field"><span>Night of</span><select id="night-of"></select></label>
+    </div>
   </div>
   <div class="panel" id="panel-display">
     <h2>Display</h2>
@@ -326,13 +329,13 @@ footer li { margin-bottom: 0.2rem; }
 <summary>Instructions</summary>
 <ul>
 <li><b>Observatory</b>: pick a preset or enter latitude, longitude, and elevation; the time zone dropdown lists common zones (the current zone is preselected).</li>
-<li><b>Time range</b>: the start date in local time and the number of days shown; the Today button centers the window on the current night; the 1 / 2 / 3 buttons set the duration to one, two, or three days.</li>
+<li><b>Time range</b>: the start date in local time and the number of days shown; the Today button centers the window on the current night; the 1 / 2 / 3 buttons set the duration to one, two, or three days; the Night of dropdown jumps the range to any local night from yesterday through two weeks ahead (each entry gives the night's best target altitude and the Moon's illumination at its closing midnight).</li>
 <li><b>Display</b>: curve mode (airmass, altitude, or azimuth); Windows adds the airmass threshold, the shaded usable bands, and the per-night list; Moon, the twilight overlays, Weather, and Extra info toggle their features.</li>
 <li><b>Targets</b>: one row per target with its color, name, RA, Dec, and V magnitude; the Simbad button looks a name up in CDS Simbad (needs internet), + adds a row, &#8635; refreshes the row's Simbad record (parallax, distance, proper motion, identifiers), and &#215; removes it.</li>
 <li><b>Main chart</b>: left axis airmass, right axis altitude; bottom axis local time, top UTC. Shading marks day, twilight, and night; the red circle at the top marks the current time. Hover for each target's details. The wheel scrolls the page; Ctrl/&#8984;+wheel zooms about the cursor; dragging inside the plot pans; the + / &minus; buttons, the scrollbar, and the arrow keys adjust the view; the &#9678; button expands the time range until the current time sits exactly at its center, mirroring the longer of the before-now and after-now portions onto the shorter side; 0, R, or a double-click resets. A rain drop or a lightning bolt along the top marks forecast hours with rain or thunder, and a moon glyph with its illumination percent marks each local midnight.</li>
 <li><b>Observing windows</b>: per night, the usable windows with durations, transit times and airmass, the field (parallactic-angle) rotation accrued above the airmass threshold, and the Moon's phase at mid-night.</li>
 <li><b>Annual calendar</b>: twelve months of coverage per target &mdash; usable hours, usable nights, hours per night, the span of usable days, and the month's best airmass.</li>
-<li><b>Workspace</b>: save named copies in this browser, import an exported JSON file, export, Copy link (encodes the full setup in the URL), download the chart as a PNG, and reset to the initial state.</li>
+<li><b>Workspace</b>: save named copies in this browser (each dropdown label shows the saved setup&rsquo;s name, observatory, target count, and save time in UTC), import an exported JSON file, export, Copy link (encodes the full setup in the URL), download the chart as a PNG, and reset to the initial state.</li>
 <li><b>Theme</b>: Dark, Light, or Red for night observing; the choice is remembered in this browser.</li>
 </ul>
 </details>
@@ -343,9 +346,10 @@ footer li { margin-bottom: 0.2rem; }
 <li>Twilight shading marks day / civil / nautical / astro / night.</li>
 <li>Entered ICRS coordinates are precessed to the mean equator/equinox of date (IAU 2006; nutation omitted), so altitudes agree with the desktop app to ~0.01&deg;. The Simbad button looks a name up in CDS Simbad (needs internet; mirrors tried in order).</li>
 <li>Chart navigation: the wheel scrolls the page as usual, Ctrl/&#8984;+wheel anywhere over the chart zooms about the cursor, and the + / &minus; buttons zoom, the scrollbar under the chart pans (drag the thumb) or jumps (click the track), dragging inside the plot pans, dragging the left or right plot edge resizes the window, dragging the chart&rsquo;s right edge, bottom edge, or bottom-right corner resizes it (the same edges resize any panel), dragging the strip at the right edge of the left column resizes the whole column, and double-clicking or the &#8634; button resets to the full range; the &#9678; button expands the time range symmetrically about the current time: the longer of the before-now and after-now portions is kept and mirrored onto the shorter side, so the current time sits exactly at the middle of the range (when the current time is outside the range, the range grows until it is contained), and the zoomed view resets to the full range; the arrow keys pan by 10% of the visible window, + / &minus; zoom, and 0 or R resets. The bottom time axis is local, the top one UTC; hovering shows both times plus each target&rsquo;s altitude, azimuth, airmass, parallactic angle, and its rotation rate in degrees per minute at that instant.</li>
-<li>Initial workspace (site/default_workspace.json) generated by airmass-gui on 2026-11-25T10:11:44; a first visit and Reset center its range on tonight's local midnight, keeping its duration. Edits stay in this browser (localStorage) until you export or reset.</li>
+<li>Initial workspace (site/default_workspace.json) generated by airmass-gui on 2026-11-25T22:36:29; a first visit and Reset center its range on tonight's local midnight, keeping its duration. Edits stay in this browser (localStorage) until you export or reset.</li>
+<li>Night of: the dropdown in the Time range panel offers the local nights from yesterday through fourteen days ahead, each labeled with the best altitude of up to two targets over that night (sampled every half hour) and the Moon's illumination at the night's closing midnight; choosing an entry sets the range to that local midnight for one day, and any range that does not start on an offered night shows as (custom range).</li>
 <li>Sharing: the URL encodes the full workspace (&#35;w= fragment) — Copy link in the Workspace panel copies it, and opening it loads that exact setup.</li>
-<li>Workspaces: save named copies in this browser, import an exported JSON file, or download the chart as a PNG image (Export JSON keeps the desktop-app file shape).</li>
+<li>Workspaces: save named copies in this browser (stored as {state, saved}; copies saved by older versions without a save time keep their name only as the label and still load), import an exported JSON file, or download the chart as a PNG image (Export JSON keeps the desktop-app file shape).</li>
 <li>Now: when the current time falls in the displayed window, a red vertical line with a filled circle at the top of the chart marks it.</li>
 <li>Windows: the dashed line marks your airmass threshold; shaded bands show when each target is usable, colored ticks on the time axis mark transits, and the panel below the chart lists per-night windows, transit times and airmass, plus the total field (parallactic-angle) rotation accrued while the target is below the threshold, and the Moon's phase (illumination and name) at mid-night.</li>
 <li>Annual calendar: per target, twelve months of coverage &mdash; usable hours, usable nights (distinct days with at least one usable hour), usable hours per night, the span of usable days, and the local time and airmass of the month&rsquo;s lowest-airmass sample above the horizon. An hour is usable while the target is below the threshold and the sky is dark (sun at or below &minus;12&deg;); sampling is one hour, so windows shorter than about an hour may be missed.</li>
@@ -2443,6 +2447,101 @@ function todayStart(s) {
 }
 
 /**
+ * The local nights the Night-of dropdown offers.
+ *
+ * The nights run from the local day before the current local day
+ * through fourteen days ahead. Each entry is the range start for that
+ * night (its 00:00) with a one-day duration. The entry's label is the
+ * local date with a relational tag (yesterday, tonight, tomorrow) for
+ * the current and adjacent local days, then, for up to two targets
+ * with a parseable position, the maximum altitude each reaches over
+ * the night (sampled every half hour), and the Moon's illumination at
+ * the night's closing local midnight.
+ *
+ * @returns {Array<{value: string, label: string, dayMs: number}>} One
+ *     entry per night in date order, where value is the local day's
+ *     'YYYY-MM-DD', label is the dropdown text, and dayMs is the
+ *     night's start in UTC epoch ms.
+ */
+function nightOfOptions() {
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var obs = state.observatory;
+  var tz = resolveTz(obs.timezone);
+  var today0 = wallToUtc(tz, tzParts(tz, Date.now()).year,
+                         tzParts(tz, Date.now()).month,
+                         tzParts(tz, Date.now()).day, 0, 0, 0);
+  var targets = [];
+  state.objects.forEach(function (obj, oi) {
+    try {
+      parseRa(obj.ra);
+      parseDec(obj.dec);
+    } catch (e) { return; }
+    targets.push({ name: obj.name || "Target " + (oi + 1), obj: obj });
+  });
+  var out = [];
+  for (var k = -1; k <= 14; k++) {
+    var p = tzParts(tz, today0 + k * 86400000);
+    var dayStart = wallToUtc(tz, p.year, p.month, p.day, 0, 0, 0);
+    var tag = k === -1 ? "yesterday" : k === 0 ? "tonight"
+              : k === 1 ? "tomorrow" : String(p.year);
+    var label = MONTHS[p.month - 1] + " " + p.day + " (" + tag + ")";
+    var alts = [];
+    targets.slice(0, 2).forEach(function (t) {
+      var best = -90;
+      for (var s = 0; s < 48; s++) {
+        var ms = dayStart + s * 1800000;
+        var jd = jdFromUtcMs(ms);
+        var c = objCoords(t.obj, ms);
+        var tt = precessIcrsToTete(c.raDeg, c.dec, jd);
+        var a = altitude(tt.raDeg / 15, tt.dec, jd, obs.lat, obs.lon);
+        if (a > best) best = a;
+      }
+      if (best > 0) alts.push(t.name + " " + Math.round(best) + "\u00b0");
+    });
+    if (alts.length) label += " \u00b7 " + alts.join(" \u00b7 ");
+    var mp = moonPhaseInfo(jdFromUtcMs(dayStart + 86400000));
+    label += " \u00b7 moon " + Math.round(mp.illum * 100) + "%";
+    out.push({ value: p.year + "-" + pad2(p.month) + "-" + pad2(p.day),
+               label: label, dayMs: dayStart });
+  }
+  return out;
+}
+
+/**
+ * Refill the Night-of dropdown and mark the night the range currently shows.
+ *
+ * The entry for the local day of the range's start is selected when
+ * that day is among the offered nights; otherwise the leading
+ * "(custom range)" entry is selected, and choosing it changes nothing.
+ *
+ * Outputs: the #night-of options and selection.
+ */
+function refreshNightOf() {
+  var sel = $("night-of");
+  sel.innerHTML = "";
+  var custom = document.createElement("option");
+  custom.value = "";
+  custom.textContent = "(custom range)";
+  sel.appendChild(custom);
+  var match = "";
+  var startMs = startUtcMs();
+  if (startMs != null) {
+    var p = tzParts(resolveTz(state.observatory.timezone), startMs);
+    match = p.year + "-" + pad2(p.month) + "-" + pad2(p.day);
+  }
+  var chosen = "";
+  nightOfOptions().forEach(function (o) {
+    var opt = document.createElement("option");
+    opt.value = o.value;
+    opt.textContent = o.label;
+    sel.appendChild(opt);
+    if (o.value === match) chosen = o.value;
+  });
+  sel.value = chosen;
+}
+
+/**
  * Load the initial state: URL fragment, then saved state, then the embedded workspace.
  *
  * The loaded state is passed through migratePresetRename before
@@ -2674,6 +2773,7 @@ function syncAllControls() {
   buildTzSelect();
   $("start").value = String(state.time_range.start || "").replace("T", " ");
   $("days").value = state.time_range.days;
+  refreshNightOf();
   $("windows-chk").checked = !!state.options.windows;
   $("threshold").value = state.options.threshold;
   $("curve-sel").value = state.options.curve;
@@ -2976,7 +3076,11 @@ var WS_KEY = "airmass-gui:workspaces";
 /**
  * Read named workspaces from browser storage.
  *
- * @returns {Object} Name -> state map, {} when absent or corrupt.
+ * Entries are name -> {state, saved}, with saved the UTC wall time;
+ * entries saved by an older version as name -> state (a bare state)
+ * are accepted too.
+ *
+ * @returns {Object} Name -> entry map, {} when absent or corrupt.
  */
 function readWorkspaces() {
   try {
@@ -2997,11 +3101,19 @@ function writeWorkspaces(ws) {
 }
 
 /**
- * Fill the workspace select box with the stored names.
+ * Fill the workspace select box with the stored workspaces.
+ *
+ * The label of an entry stored as {state, saved} is the name, the
+ * stored state's observatory, the target count, and the save time,
+ * joined by the middle dot; an entry stored as a bare state (older
+ * version) keeps its name only.
+ *
+ * Outputs: the #ws-select options.
  */
 function refreshWsSelect() {
   var sel = $("ws-select");
-  var names = Object.keys(readWorkspaces()).sort();
+  var ws = readWorkspaces();
+  var names = Object.keys(ws).sort();
   sel.innerHTML = "";
   if (names.length === 0) {
     var opt = document.createElement("option");
@@ -3011,9 +3123,22 @@ function refreshWsSelect() {
     return;
   }
   names.forEach(function (name) {
+    var entry = ws[name];
+    var label = name;
+    if (entry && entry.state) {
+      var s = entry.state;
+      var bits = [name];
+      if (s.observatory && s.observatory.name)
+        bits.push(s.observatory.name);
+      if (Array.isArray(s.objects))
+        bits.push(s.objects.length + " target" +
+                  (s.objects.length === 1 ? "" : "s"));
+      if (entry.saved) bits.push("saved " + entry.saved);
+      label = bits.join(" \u00b7 ");
+    }
     var opt = document.createElement("option");
     opt.value = name;
-    opt.textContent = name;
+    opt.textContent = label;
     sel.appendChild(opt);
   });
 }
@@ -5020,6 +5145,22 @@ $("today-btn").addEventListener("click", function () {
   saveState();
   scheduleRedraw();
 });
+// Night-of dropdown: set the range to the chosen local night, one
+// day long starting at its local midnight.
+$("night-of").addEventListener("change", function () {
+  var v = this.value;
+  if (!v) return;
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return;
+  var tz = resolveTz(state.observatory.timezone);
+  state.time_range.start = localStamp(
+      wallToUtc(tz, +m[1], +m[2], +m[3], 0, 0, 0));
+  state.time_range.days = 1;
+  syncAllControls();
+  invalidateView();
+  saveState();
+  scheduleRedraw();
+});
 $("days").addEventListener("input", function () {
   var v = parseFloat(this.value);
   if (isFinite(v) && v > 0) state.time_range.days = v;
@@ -5971,13 +6112,18 @@ $("copylink-btn").addEventListener("click", function () {
   }
 });
 $("export-btn").addEventListener("click", exportWorkspace);
-// Save the current state under a name in browser storage.
+// Save the current state under a name in browser storage as
+// {state, saved}, with saved the UTC wall time.
 $("ws-save-btn").addEventListener("click", function () {
   var name = window.prompt("Save workspace as:");
   if (!name || !name.trim()) return;
   name = name.trim();
   var ws = readWorkspaces();
-  ws[name] = deepCopy(state);
+  ws[name] = {
+    state: deepCopy(state),
+    saved: new Date().toISOString().slice(0, 16).replace("T", " ")
+           + " UTC",
+  };
   writeWorkspaces(ws);
   refreshWsSelect();
   $("ws-select").value = name;
@@ -5987,7 +6133,9 @@ $("ws-save-btn").addEventListener("click", function () {
 $("ws-load-btn").addEventListener("click", function () {
   var name = $("ws-select").value;
   if (!name) { setStatus("No workspace selected"); return; }
-  loadWorkspaceDoc(readWorkspaces()[name], "\u201c" + name + "\u201d");
+  var entry = readWorkspaces()[name];
+  loadWorkspaceDoc(entry && entry.state ? entry.state : entry,
+                   "\u201c" + name + "\u201d");
 });
 // Delete the selected named workspace after confirmation.
 $("ws-delete-btn").addEventListener("click", function () {
