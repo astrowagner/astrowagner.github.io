@@ -128,6 +128,12 @@ input[type="checkbox"] { flex: none; }
 #calendar .cal-table th, #calendar .cal-table td { padding: 0.08rem 0.6rem 0.08rem 0;
                                                    text-align: right; }
 #calendar .cal-table th { color: var(--fg-dim); font-weight: normal; }
+#wxreport .wx-table { border-collapse: collapse; margin: 0.4rem 0; font-size: 0.82rem; }
+#wxreport .wx-table th, #wxreport .wx-table td { padding: 0.08rem 0.6rem 0.08rem 0;
+                                                   text-align: left; }
+#wxreport .wx-table th { color: var(--fg-dim); font-weight: normal; }
+#wxreport .wx-current, #wxreport .wx-links { margin: 0.25rem 0; font-size: 0.82rem; }
+#wxreport .wx-error, #wxreport .wx-wait { color: var(--fg-dim); font-size: 0.82rem; }
 #calendar .cal-empty { color: var(--fg-dim); font-size: 0.8rem; }
 #calendar .cal-note { color: var(--fg-dim); font-size: 0.75rem; margin-bottom: 0.35rem; }
 canvas { display: block; width: 100%; }
@@ -228,6 +234,7 @@ footer li { margin-bottom: 0.2rem; }
     <label class="field"><span>Nautical twilight</span><input id="nautical-chk" type="checkbox"></label>
     <label class="field"><span>Dawn/dusk ticks</span><input id="dusk-chk" type="checkbox" checked></label>
     <label class="field"><span>Weather</span><input id="weather-chk" type="checkbox"></label>
+    <label class="field"><span>Weather report</span><input id="wxreport-chk" type="checkbox"></label>
     <label class="field"><span>Annual calendar</span><input id="calendar-chk" type="checkbox" checked></label>
     <label class="field"><span>Finding chart</span><input id="finding-chk" type="checkbox"></label>
   </div>
@@ -318,6 +325,10 @@ footer li { margin-bottom: 0.2rem; }
       <button id="csv-btn" title="Download the observing windows as CSV">Windows CSV</button>
     </div>
   </div>
+  <div class="panel" id="wxreport-panel" style="display:none">
+    <h2>Weather report</h2>
+    <div id="wxreport"></div>
+  </div>
   <div class="panel" id="calendar-panel">
     <h2>Annual calendar</h2>
     <div id="calendar"></div>
@@ -330,7 +341,7 @@ footer li { margin-bottom: 0.2rem; }
 <ul>
 <li><b>Observatory</b>: pick a preset or enter latitude, longitude, and elevation; the time zone dropdown lists common zones (the current zone is preselected).</li>
 <li><b>Time range</b>: the start date in local time and the number of days shown; the Today button centers the window on the current night; the 1 / 2 / 3 buttons set the duration to one, two, or three days; the Night of dropdown jumps the range to any local night from yesterday through two weeks ahead (each entry gives the night's best target altitude and the Moon's illumination at its closing midnight).</li>
-<li><b>Display</b>: curve mode (airmass, altitude, or azimuth); Windows adds the airmass threshold, the shaded usable bands, and the per-night list; Moon, the twilight overlays, Weather, and Extra info toggle their features.</li>
+<li><b>Display</b>: curve mode (airmass, altitude, or azimuth); Windows adds the airmass threshold, the shaded usable bands, and the per-night list; Moon, the twilight overlays, Weather, Weather report, and Extra info toggle their features.</li>
 <li><b>Targets</b>: one row per target with its color, name, RA, Dec, and V magnitude; the Simbad button looks a name up in CDS Simbad (needs internet), + adds a row, &#8635; refreshes the row's Simbad record (parallax, distance, proper motion, identifiers), and &#215; removes it.</li>
 <li><b>Main chart</b>: left axis airmass, right axis altitude; bottom axis local time, top UTC. Shading marks day, twilight, and night; the red circle at the top marks the current time. Hover for each target's details. The wheel scrolls the page; Ctrl/&#8984;+wheel zooms about the cursor; dragging inside the plot pans; the + / &minus; buttons, the scrollbar, and the arrow keys adjust the view; the &#9678; button expands the time range until the current time sits exactly at its center, mirroring the longer of the before-now and after-now portions onto the shorter side; 0, R, or a double-click resets. A rain drop or a lightning bolt along the top marks forecast hours with rain or thunder, and a moon glyph with its illumination percent marks each local midnight.</li>
 <li><b>Observing windows</b>: per night, the usable windows with durations, transit times and airmass, the field (parallactic-angle) rotation accrued above the airmass threshold, the Moon's phase at mid-night and its rise and set that night (or whether it stays up or down all night), and, with Weather on, the day's maximum hourly rain chance and average clear-sky fraction.</li>
@@ -346,7 +357,7 @@ footer li { margin-bottom: 0.2rem; }
 <li>Twilight shading marks day / civil / nautical / astro / night.</li>
 <li>Entered ICRS coordinates are precessed to the mean equator/equinox of date (IAU 2006; nutation omitted), so altitudes agree with the desktop app to ~0.01&deg;. The Simbad button looks a name up in CDS Simbad (needs internet; mirrors tried in order).</li>
 <li>Chart navigation: the wheel scrolls the page as usual, Ctrl/&#8984;+wheel anywhere over the chart zooms about the cursor, and the + / &minus; buttons zoom, the scrollbar under the chart pans (drag the thumb) or jumps (click the track), dragging inside the plot pans, dragging the left or right plot edge resizes the window, dragging the chart&rsquo;s right edge, bottom edge, or bottom-right corner resizes it (the same edges resize any panel), dragging the strip at the right edge of the left column resizes the whole column, and double-clicking or the &#8634; button resets to the full range; the &#9678; button expands the time range symmetrically about the current time: the longer of the before-now and after-now portions is kept and mirrored onto the shorter side, so the current time sits exactly at the middle of the range (when the current time is outside the range, the range grows until it is contained), and the zoomed view resets to the full range; the arrow keys pan by 10% of the visible window, + / &minus; zoom, and 0 or R resets. The bottom time axis is local, the top one UTC; hovering shows both times plus each target&rsquo;s altitude, azimuth, airmass, parallactic angle, and its rotation rate in degrees per minute at that instant.</li>
-<li>Initial workspace (site/default_workspace.json) generated by airmass-gui on 2026-11-25T22:46:41; a first visit and Reset center its range on tonight's local midnight, keeping its duration. Edits stay in this browser (localStorage) until you export or reset.</li>
+<li>Initial workspace (site/default_workspace.json) generated by airmass-gui on 2026-11-25T23:01:28; a first visit and Reset center its range on tonight's local midnight, keeping its duration. Edits stay in this browser (localStorage) until you export or reset.</li>
 <li>Night of: the dropdown in the Time range panel offers the local nights from yesterday through fourteen days ahead, each labeled with the best altitude of up to two targets over that night (sampled every half hour) and the Moon's illumination at the night's closing midnight; choosing an entry sets the range to that local midnight for one day, and any range that does not start on an offered night shows as (custom range).</li>
 <li>Sharing: the URL encodes the full workspace (&#35;w= fragment) — Copy link in the Workspace panel copies it, and opening it loads that exact setup.</li>
 <li>Workspaces: save named copies in this browser (stored as {state, saved}; copies saved by older versions without a save time keep their name only as the label and still load), import an exported JSON file, or download the chart as a PNG image (Export JSON keeps the desktop-app file shape).</li>
@@ -354,6 +365,7 @@ footer li { margin-bottom: 0.2rem; }
 <li>Windows: the dashed line marks your airmass threshold; shaded bands show when each target is usable, colored ticks on the time axis mark transits, and the panel below the chart lists per-night windows, transit times and airmass, plus the total field (parallactic-angle) rotation accrued while the target is below the threshold, the Moon's phase (illumination and name) at mid-night, that night's Moon rise and set in local time (or a note that the Moon stays up or down for the whole day's part), and, with Weather on, the day's maximum hourly rain chance and average clear-sky fraction.</li>
 <li>Annual calendar: per target, twelve months of coverage &mdash; usable hours, usable nights (distinct days with at least one usable hour), usable hours per night, the span of usable days, and the local time and airmass of the month&rsquo;s lowest-airmass sample above the horizon. An hour is usable while the target is below the threshold and the sky is dark (sun at or below &minus;12&deg;); sampling is one hour, so windows shorter than about an hour may be missed.</li>
 <li>Weather (hidden by default; enable it with the Weather checkbox in the Display panel): the cloud band fills the plot with the hourly cloud cover; a rain drop along the top marks hours with precipitation or at least a 40% rain chance and a lightning bolt marks thunderstorm hours (WMO weather codes 95/96/99); each per-night list adds the day's maximum hourly rain chance and the average clear-sky fraction. The forecast runs from about 16 days back to about 15 days ahead (needs internet).</li>
+<li>Weather report (hidden by default; enable it with the Weather report checkbox in the Display panel): the current conditions at the observatory, then one row per day for eight days \u2014 condition, min and max temperature, maximum rain chance, mean cloud cover, maximum wind, and the Moon's illumination at the day's closing midnight \u2014 with links to the underlying weather services (needs internet; fetched from open-meteo and cached for one hour).</li>
 <li>Moon symbols: a glyph at each local midnight shows the Moon&rsquo;s phase, with its illumination in percent beside it; always shown, independent of the Moon curve.</li>
 <li>Targets: with Extra info checked, a Target details window under the rows shows each target's full Simbad record (magnitudes in all bands, spectral type, parallax with its uncertainty and the inverted distance, proper motion, radial velocity, and identifiers); a row's status text shows the stored ephemeris point count, and clicking its cross clears the record and ephemeris.</li>
 <li>Finding chart (hidden by default; enable it with the Finding chart checkbox in the Display panel): a circular star chart centered on the selected target, drawn from a Simbad coordinate query (needs internet; nearby objects sized by V magnitude, with an equatorial grid, N / E arrows, north up, east left, and a cross on each other workspace target), plus a link that opens the SkyView quick-query page for a real sky image of the same field in the selected survey (DSS, HEAO 1, RASS, TESS, IRAS 100&mu;m, or 0408 MHz; needs internet; opens in a new tab); the chart and the image are both centered on the target&rsquo;s J2000 position, so the two agree; hovering the star chart shows the equatorial coordinates under the cursor and, for the nearest Simbad object, its name, angular offset from the cursor, and a detail table (RA/Dec, magnitudes in all available bands, spectral type, object type, offset from the target, and bibliography/note counts); a second Simbad lookup by name adds the object's parallax with uncertainty, distance, proper motion, radial velocity, and identifiers to the table (cached per name, throttled to one query per 1.5 s, retried after about 10 minutes on failure); the zoom slider (logarithmic) runs the search radius from 0.5&prime; to 5&deg;, with the current radius shown beside it, and the chart re-scales live as the slider moves.</li>
@@ -1551,6 +1563,35 @@ function weatherSymbolKind(h) {
 }
 
 /**
+ * WMO weather interpretation codes to short texts, as published by
+ * open-meteo for its weather_code field.
+ *
+ * @type {Object<number, string>}
+ */
+var WMO_TEXT = {
+  0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+  45: "Fog", 48: "Fog", 51: "Drizzle", 53: "Drizzle", 55: "Drizzle",
+  56: "Freezing drizzle", 57: "Freezing drizzle", 61: "Rain",
+  63: "Rain", 65: "Rain", 66: "Freezing rain", 67: "Freezing rain",
+  71: "Snow", 73: "Snow", 75: "Snow", 77: "Snow", 80: "Rain showers",
+  81: "Rain showers", 82: "Rain showers", 85: "Snow showers",
+  86: "Snow showers", 95: "Thunderstorm", 96: "Thunderstorm with hail",
+  99: "Thunderstorm with hail"
+};
+
+/**
+ * Text for a WMO weather interpretation code.
+ *
+ * @param {?number} code - WMO weather code, or null when absent.
+ * @returns {string} The code's text, "Code N" for a code without a
+ *     text, or "Unknown" for null.
+ */
+function wmoText(code) {
+  if (code == null) return "Unknown";
+  return WMO_TEXT[code] != null ? WMO_TEXT[code] : "Code " + code;
+}
+
+/**
  * Split a sexagesimal entry into its numeric parts.
  *
  * @param {string} text - Entry with colons, h/m/s or
@@ -2453,6 +2494,7 @@ function normalizeState(s) {
     dusk: true,
     calendar: true,
     weather: false,
+    wxReport: false,
     curve: "airmass",
     extraInfo: false,
     finding: false,
@@ -2859,9 +2901,11 @@ function syncAllControls() {
   $("nautical-chk").checked = !!state.options.nautical;
   $("dusk-chk").checked = !!state.options.dusk;
   $("weather-chk").checked = !!state.options.weather;
+  $("wxreport-chk").checked = !!state.options.wxReport;
   $("calendar-chk").checked = !!state.options.calendar;
   $("extra-chk").checked = !!state.options.extraInfo;
   $("summary-panel").style.display = state.options.windows ? "" : "none";
+  $("wxreport-panel").style.display = state.options.wxReport ? "" : "none";
   $("finding-chk").checked = !!state.options.finding;
   $("finding-survey").value = state.options.findingSurvey;
   $("finding-panel").style.display = state.options.finding ? "" : "none";
@@ -3550,6 +3594,137 @@ function renderSummary() {
   if (!anyTarget) html = '<div class="sum-empty">Add a target to list its observing windows.</div>';
   box.innerHTML = html;
   $("summary-panel").style.display = "";
+}
+
+/**
+ * Render the Weather report panel from the cached daily reply.
+ *
+ * The panel is hidden when the option is off. When on, it shows a
+ * current-conditions line (temperature in Celsius and Fahrenheit,
+ * wind in km/h, cloud cover and rain chance in percent, condition),
+ * one table row per forecast day (condition, min and max
+ * temperature in Celsius, maximum rain chance, mean cloud cover,
+ * maximum wind, and the Moon's illumination in percent at the
+ * day's closing local midnight), and links to the underlying
+ * weather services. With no cached reply the panel shows a loading
+ * note; after a failed fetch it shows the error instead of data.
+ * Every value from the reply reaches the page only through DOM
+ * calls (textContent and properties), never through markup strings.
+ */
+function renderWxReport() {
+  var panel = $("wxreport-panel");
+  var box = $("wxreport");
+  if (!state.options.wxReport) {
+    panel.style.display = "none";
+    box.innerHTML = "";
+    return;
+  }
+  panel.style.display = "";
+  box.innerHTML = "";
+  if (__wxReportError) {
+    var err = document.createElement("p");
+    err.className = "wx-error";
+    err.textContent = __wxReportError;
+    box.appendChild(err);
+    return;
+  }
+  var body = __wxReportCache.body;
+  if (!body || !body.daily || !Array.isArray(body.daily.time)) {
+    var wait = document.createElement("p");
+    wait.className = "wx-wait";
+    wait.textContent = "Weather report: loading";
+    box.appendChild(wait);
+    return;
+  }
+  var c = body.current || {};
+  var cur = document.createElement("p");
+  cur.className = "wx-current";
+  var parts = [];
+  if (c.temperature_2m != null)
+    parts.push(c.temperature_2m.toFixed(1) + " \u00b0C (" +
+               (c.temperature_2m * 9 / 5 + 32).toFixed(1) + " \u00b0F)");
+  if (c.wind_speed_10m != null)
+    parts.push("wind " + c.wind_speed_10m.toFixed(1) + " km/h");
+  if (c.cloud_cover != null) parts.push("cloud " + c.cloud_cover + "%");
+  if (c.precipitation_probability != null)
+    parts.push("rain " + c.precipitation_probability + "%");
+  if (c.weather_code != null) parts.push(wmoText(c.weather_code));
+  cur.textContent = parts.length ? "Now: " + parts.join(", ") : "Now: no data";
+  box.appendChild(cur);
+  var d = body.daily;
+  var table = document.createElement("table");
+  table.className = "wx-table";
+  var head = document.createElement("thead");
+  var htr = document.createElement("tr");
+  ["Date", "Condition", "Tmin", "Tmax", "Rain %", "Cloud %",
+   "Wind max", "Moon %"].forEach(function (t) {
+    var th = document.createElement("th");
+    th.textContent = t;
+    htr.appendChild(th);
+  });
+  head.appendChild(htr);
+  var tb = document.createElement("tbody");
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var obs = state.observatory;
+  for (var i = 0; i < d.time.length; i++) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d.time[i]));
+    if (!m) continue;
+    var tr = document.createElement("tr");
+    var cells = [
+      MONTHS[+m[2] - 1] + " " + (+m[3]),
+      wmoText(d.weather_code ? d.weather_code[i] : null),
+      d.temperature_2m_min != null && d.temperature_2m_min[i] != null
+          ? d.temperature_2m_min[i].toFixed(1) + " \u00b0C" : "",
+      d.temperature_2m_max != null && d.temperature_2m_max[i] != null
+          ? d.temperature_2m_max[i].toFixed(1) + " \u00b0C" : "",
+      d.precipitation_probability_max != null
+          && d.precipitation_probability_max[i] != null
+          ? d.precipitation_probability_max[i] + "%" : "",
+      d.cloudcover_mean != null && d.cloudcover_mean[i] != null
+          ? d.cloudcover_mean[i] + "%" : "",
+      d.wind_speed_10m_max != null && d.wind_speed_10m_max[i] != null
+          ? d.wind_speed_10m_max[i].toFixed(1) + " km/h" : "",
+      (function () {
+        var closing = wallToUtc(resolveTz(obs.timezone),
+                                +m[1], +m[2], +m[3] + 1, 0, 0, 0);
+        return Math.round(
+          moonPhaseInfo(jdFromUtcMs(closing)).illum * 100) + "%";
+      })()
+    ];
+    cells.forEach(function (t) {
+      var td = document.createElement("td");
+      td.textContent = t;
+      tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  }
+  table.appendChild(head);
+  table.appendChild(tb);
+  box.appendChild(table);
+  var links = document.createElement("p");
+  links.className = "wx-links";
+  var label = document.createElement("span");
+  label.textContent = "Weather services: ";
+  links.appendChild(label);
+  [["https://open-meteo.com/", "open-meteo.com"],
+   ["https://www.windy.com/", "windy.com"],
+   ["https://www.weather.gov/", "weather.gov"],
+   ["https://www.wunderground.com/", "wunderground.com"]]
+  .forEach(function (pair, k) {
+    if (k > 0) {
+      var sep = document.createElement("span");
+      sep.textContent = " \u00b7 ";
+      links.appendChild(sep);
+    }
+    var a = document.createElement("a");
+    a.setAttribute("href", pair[0]);
+    a.setAttribute("target", "_blank");
+    a.setAttribute("rel", "noopener");
+    a.textContent = pair[1];
+    links.appendChild(a);
+  });
+  box.appendChild(links);
 }
 
 var __calCache = { key: null, data: null };
@@ -4405,7 +4580,13 @@ function draw(fast) {
                  plot.x + plot.w - 8, plot.y + 16 + bi * 14);
   }
 
-  if (!fast) { renderSummary(); renderCalendar(); renderLegend(legend); }
+  if (!fast) {
+    renderSummary();
+    renderCalendar();
+    renderLegend(legend);
+    renderWxReport();
+    if (state.options.wxReport) wxReportRefresh();
+  }
 }
 
 // --------------------------------------------------------- view interaction
@@ -5331,6 +5512,11 @@ $("weather-chk").addEventListener("change", function () {
   saveState();
   scheduleRedraw();
 });
+$("wxreport-chk").addEventListener("change", function () {
+  state.options.wxReport = this.checked;
+  saveState();
+  scheduleRedraw();
+});
 $("calendar-chk").addEventListener("change", function () {
   state.options.calendar = this.checked;
   saveState();
@@ -5458,6 +5644,46 @@ function weatherRequest(obs) {
 }
 
 /**
+ * Build an open-meteo daily forecast request for an observatory.
+ *
+ * Requests the current conditions and a daily summary (min and max
+ * temperature, maximum rain chance, mean cloud cover, maximum wind,
+ * WMO code) in the observatory's time zone, from the local day
+ * through the seven days after it (eight local days total). The end
+ * date is found by stepping seven local days ahead from local
+ * midnight, so the range stays inside open-meteo's forecast
+ * coverage.
+ *
+ * @param {Object} obs - Observatory with lat, lon, and timezone.
+ * @returns {{url: string, start: string, end: string}} The query
+ *     URL plus the requested local date range as 'YYYY-MM-DD'
+ *     strings.
+ */
+function wxDailyRequest(obs) {
+  var tz = resolveTz(obs.timezone);
+  var p = tzParts(tz, Date.now());
+  var day0 = wallToUtc(tz, p.year, p.month, p.day, 0, 0, 0);
+  var e = tzParts(tz, day0 + 7 * 86400000 + 43200000);
+  var date = function (q) {
+    return q.year + "-" + pad2(q.month) + "-" + pad2(q.day);
+  };
+  var s = date(p), ed = date(e);
+  return {
+    url: "https://api.open-meteo.com/v1/forecast?latitude=" + obs.lat +
+         "&longitude=" + obs.lon +
+         "&current=temperature_2m,wind_speed_10m,cloud_cover," +
+         "precipitation_probability,weather_code" +
+         "&daily=temperature_2m_max,temperature_2m_min," +
+         "precipitation_probability_max,cloudcover_mean," +
+         "wind_speed_10m_max,weather_code" +
+         "&timezone=" + encodeURIComponent(tz) +
+         "&start_date=" + s + "&end_date=" + ed,
+    start: s,
+    end: ed
+  };
+}
+
+/**
  * Fetch an open-meteo forecast response as JSON, with a 30 s timeout.
  *
  * @param {string} url - Fully formed open-meteo query URL.
@@ -5483,6 +5709,41 @@ function fetchWeather(url) {
           throw new Error(body && body.error && body.reason
               ? body.reason : "HTTP " + status);
         if (!body || !body.hourly || !Array.isArray(body.hourly.time))
+          throw new Error("unexpected response shape");
+        return body;
+      });
+    })
+    .finally(function () { clearTimeout(timer); });
+}
+
+/**
+ * Fetch an open-meteo daily forecast response as JSON, with a 30 s
+ * timeout.
+ *
+ * @param {string} url - Fully formed open-meteo query URL.
+ * @returns {Promise<Object>} Parsed JSON body with current and
+ *     daily blocks.
+ * @throws {Error} On timeout, network failure, or a non-2xx status;
+ *     for the latter, the open-meteo error reason is surfaced when
+ *     the error body carries one, otherwise the HTTP status code. A
+ *     body without a usable daily block also throws.
+ */
+function fetchWxDaily(url) {
+  var controller = new AbortController();
+  var timer = setTimeout(function () { controller.abort(); }, 30000);
+  return fetch(url, { signal: controller.signal })
+    .catch(function (error) {
+      throw new Error(error && error.name === "AbortError" ? "timed out" : error.message);
+    })
+    .then(function (response) {
+      var status = response.status;
+      return response.text().then(function (text) {
+        var body = null;
+        try { body = JSON.parse(text); } catch (err) { body = null; }
+        if (!response.ok)
+          throw new Error(body && body.error && body.reason
+              ? body.reason : "HTTP " + status);
+        if (!body || !body.daily || !Array.isArray(body.daily.time))
           throw new Error("unexpected response shape");
         return body;
       });
@@ -5558,6 +5819,44 @@ function weatherRefresh() {
  */
 function weatherHours() {
   return __wxCache.hours;
+}
+
+var __wxReportCache = { key: null, fetchedMs: 0, body: null };
+var __wxReportFlight = null;
+var __wxReportError = null;
+
+/**
+ * Fetch (or reuse) the daily weather report for the current
+ * observatory.
+ *
+ * The reply is cached per request URL and reused for one hour. On
+ * success the panel re-renders with the new data; on failure the
+ * panel shows the error (the cache keeps its last good body, but
+ * the error note takes over the rendering until the next
+ * successful fetch).
+ *
+ * @returns {?Promise<void>} The in-flight request, or null when the
+ *     cache is current.
+ */
+function wxReportRefresh() {
+  var req = wxDailyRequest(state.observatory);
+  var key = req.url;
+  var now = Date.now();
+  if (__wxReportCache.key === key && now - __wxReportCache.fetchedMs < 3600000)
+    return null;
+  if (__wxReportFlight) return __wxReportFlight;
+  __wxReportFlight = fetchWxDaily(key)
+    .then(function (body) {
+      __wxReportCache = { key: key, fetchedMs: now, body: body };
+      __wxReportError = null;
+      renderWxReport();
+    })
+    .catch(function (error) {
+      __wxReportError = "Weather report unavailable: " + error.message;
+      renderWxReport();
+    })
+    .then(function () { __wxReportFlight = null; });
+  return __wxReportFlight;
 }
 
 /**
